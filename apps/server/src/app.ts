@@ -23,14 +23,19 @@ import type { Env } from './types/env.js'
 // ---------------------------------------------------------------------------
 
 const app = new Hono<{ Bindings: Env }>()
+const defaultCorsOrigin = 'http://localhost:3000'
+const corsOrigins = (process.env.CORS_ORIGIN ?? defaultCorsOrigin)
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean)
 
 // --- Global middleware ---
 
-// CORS: permissive in dev; tighten for production via env
+// CORS: allow configured web origins and the Capacitor Android origin.
 app.use(
   '*',
   cors({
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+    origin: corsOrigins,
     allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
     allowHeaders: ['Content-Type', 'Authorization'],
     credentials: true,

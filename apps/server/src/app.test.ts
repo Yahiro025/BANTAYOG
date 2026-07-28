@@ -1,5 +1,21 @@
-import { describe, it, expect } from 'vitest'
-import { app } from './app.js'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import type { app as App } from './app.js'
+
+let app: typeof App
+const previousCorsOrigin = process.env.CORS_ORIGIN
+
+beforeAll(async () => {
+  process.env.CORS_ORIGIN = 'http://localhost:3000,https://localhost'
+  ;({ app } = await import('./app.js'))
+})
+
+afterAll(() => {
+  if (previousCorsOrigin === undefined) {
+    delete process.env.CORS_ORIGIN
+  } else {
+    process.env.CORS_ORIGIN = previousCorsOrigin
+  }
+})
 
 describe('GET /health', () => {
   it('returns 200 with status ok', async () => {
@@ -30,10 +46,33 @@ describe('404 handler', () => {
 })
 
 describe('CORS middleware', () => {
-  it('includes CORS headers in response', async () => {
+  it('allows an origin in the configured comma-separated allowlist', async () => {
     const res = await app.request('/health', {
-      headers: { Origin: 'http://localhost:3000' },
+      headers: { Origin: 'https://localhost' },
     })
-    expect(res.headers.get('access-control-allow-origin')).toBe('http://localhost:3000')
+    expect(res.headers.get('access-control-allow-origin')).toBe('https://localhost')
+  })
+
+  it('does not allow an unknown origin', async () => {
+    const res = await app.request('/health', {
+      headers: { Origin: 'https://unknown.example.test' },
+    })
+
+    expect(res.headers.get('access-control-allow-origin')).toBeNull()
+  })
+
+  it('allows an Authorization preflight for an allowed origin', async () => {
+    const res = await app.request('/api/auth/merchant-login', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://localhost',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'authorization, content-type',
+      },
+    })
+
+    expect(res.status).toBe(204)
+    expect(res.headers.get('access-control-allow-origin')).toBe('https://localhost')
+    expect(res.headers.get('access-control-allow-headers')).toContain('Authorization')
   })
 })
