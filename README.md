@@ -2,10 +2,6 @@
 
   <img src="./assets/logo.png" alt="Bantayog Logo" width="500" />
 
-  <p><strong>Nutrition-locked subsidies for the Philippine "First 1,000 Days" cohort.</strong><br />
-  A printed QR pass instead of cash. AI product checks at the counter. Every peso traceable to a food item.</p>
-
-  
 </div>
 
 <br />
