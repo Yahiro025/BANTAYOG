@@ -5,18 +5,7 @@
   <p><strong>Nutrition-locked subsidies for the Philippine "First 1,000 Days" cohort.</strong><br />
   A printed QR pass instead of cash. AI product checks at the counter. Every peso traceable to a food item.</p>
 
-  <p>
-
-    <img alt="SparkFest 2026" src="https://img.shields.io/badge/SparkFest%202026-1st%20Runner--Up-FBBC04" />
-
-    <img alt="Polygon Amoy" src="https://img.shields.io/badge/chain-Polygon%20Amoy%20(80002)-7B3FE4" />
-
-    <img alt="Gemini" src="https://img.shields.io/badge/AI-Gemini%20Vision-4285F4" />
-
-    <img alt="Android" src="https://img.shields.io/badge/merchant-Android%20app-3DDC84" />
-
-  </p>
-
+  
 </div>
 
 <br />
