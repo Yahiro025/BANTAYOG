@@ -9,7 +9,7 @@
 ## Team Information
 
 **Team Name:**
-Team Bantayog
+JUMBO HOTDOG
 
 **Project Name:**
 BANTAYOG
