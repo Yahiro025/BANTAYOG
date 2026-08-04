@@ -42,7 +42,7 @@ packages/ui/                 placeholder, empty — web components live in apps/
 
 supabase/migrations/         numbered SQL migrations; seed.sql, setup-test-users.js
 scripts/                     seeding + external cron registration
-docs/                        SECURITY.md, SMART_CONTRACT_OPS.md, adr/001-003
+docs/                        SECURITY.md, SHOWCASE.md, SMART_CONTRACT_OPS.md, adr/001-003
 ```
 
 ## Naming conventions

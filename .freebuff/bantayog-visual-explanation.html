@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BANTAYOG — Visual Explanation</title>
+<style>
+  /* ── Reset & base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; font-size: 16px; }
+  body {
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #faf5f2;
+    color: #1a1a2e;
+    line-height: 1.6;
+    padding: 0;
+  }
+
+  /* ── Typography ── */
+  h1, h2, h3, h4 { font-weight: 700; line-height: 1.3; }
+  h1 { font-size: 2rem; letter-spacing: -0.02em; }
+  h2 { font-size: 1.5rem; margin-top: 2.5rem; border-bottom: 2px solid #e0d6cf; padding-bottom: 0.5rem; }
+  h3 { font-size: 1.125rem; margin-top: 1.5rem; color: #004B49; }
+  h4 { font-size: 0.875rem; margin-top: 1rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6b5e55; }
+  p, li { max-width: 70ch; }
+  p + p { margin-top: 0.75rem; }
+  a { color: #017075; text-decoration: underline; text-underline-offset: 2px; }
+  a:hover { color: #004B49; }
+  code {
+    background: #e8e0db;
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+    font-size: 0.8125rem;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+
+  /* ── Layout ── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  @media (min-width: 768px) { .container { padding: 3rem 2rem 5rem; } }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, #004B49 0%, #017075 100%);
+    color: white;
+    padding: 3rem 2rem;
+    border-radius: 1.5rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    right: -2rem;
+    top: -2rem;
+    width: 12rem;
+    height: 12rem;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+  }
+  .hero h1 { font-size: 2.25rem; margin-bottom: 0.5rem; }
+  .hero p { font-size: 1.05rem; opacity: 0.9; max-width: 60ch; }
+  .hero-tag {
+    display: inline-block;
+    background: rgba(255,255,255,0.15);
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+
+  /* ── Card ── */
+  .card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    margin-bottom: 1.5rem;
+    border: 1px solid #f0e8e3;
+  }
+  .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+
+  /* ── Badge ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .badge-teal { background: #e0f2f1; color: #004B49; }
+  .badge-coral { background: #fdecea; color: #c43737; }
+  .badge-green { background: #e8fdf0; color: #1a7a3a; }
+  .badge-amber { background: #fef9e7; color: #8a6d1a; }
+  .badge-blue { background: #e3f0f2; color: #017075; }
+
+  /* ── Grid ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+  @media (min-width: 640px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+  .grid-3 { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+  @media (min-width: 768px) { .grid-3 { grid-template-columns: 1fr 1fr 1fr; } }
+
+  /* ── SVG diagram base ── */
+  .diagram { max-width: 100%; height: auto; display: block; margin: 1.5rem auto; }
+  .diagram text { font-family: 'Inter', system-ui, sans-serif; }
+
+  /* ── Callout ── */
+  .callout {
+    border-left: 4px solid #0b6e6e;
+    background: #f0f7f7;
+    padding: 1rem 1.25rem;
+    border-radius: 0 0.5rem 0.5rem 0;
+    margin: 1.5rem 0;
+  }
+  .callout-warn {
+    border-left-color: #e74c3c;
+    background: #fdecea;
+  }
+  .callout-tip {
+    border-left-color: #2ecc71;
+    background: #e8fdf0;
+  }
+  .callout-title {
+    font-weight: 700;
+    font-size: 0.8125rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.25rem;
+  }
+
+  /* ── Table ── */
+  .table-wrap { overflow-x: auto; margin: 1.5rem 0; }
+  table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.875rem;
+    border: 1px solid #e0d6cf;
+    border-radius: 0.75rem;
+    overflow: hidden;
+  }
+  th {
+    background: #004B49;
+    color: white;
+    text-align: left;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+  }
+  td {
+    padding: 0.625rem 0.875rem;
+    border-top: 1px solid #f0e8e3;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #faf5f2; }
+
+  /* ── Flow step ── */
+  .flow-step {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f0e8e3;
+  }
+  .flow-step:last-child { border-bottom: none; }
+  .flow-step-num {
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: #004B49;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .flow-step-num.coral { background: #e85d5d; }
+  .flow-step-num.amber { background: #f39c12; }
+  .flow-step-content { flex: 1; }
+  .flow-step-content .label { font-weight: 600; font-size: 0.875rem; }
+  .flow-step-content .desc { font-size: 0.8125rem; color: #6b5e55; margin-top: 0.125rem; }
+
+  /* ── Stack diagram ── */
+  .stack-layer {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 0.375rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+  .stack-layer .layer-icon { flex-shrink: 0; font-size: 1.25rem; }
+  .stack-layer .layer-name { flex-shrink: 0; min-width: 7rem; font-weight: 700; }
+  .stack-layer .layer-desc { color: #6b5e55; }
+
+  .layer-web { background: #e3f0f2; }
+  .layer-api { background: #d4e8e9; }
+  .layer-service { background: #c8dadb; }
+  .layer-domain { background: #bdd5d6; }
+  .layer-db { background: #a8c8c9; }
+  .layer-chain { background: #e0f2f1; }
+  .layer-ai { background: #f6e5e2; }
+
+  /* ── Status bar ── */
+  .status-bar { display: flex; gap: 0.25rem; flex-wrap: wrap; margin: 0.5rem 0; }
+  .status-pill {
+    padding: 0.25rem 0.625rem;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+  }
+  .status-pill.pending { background: #fef9e7; color: #8a6d1a; }
+  .status-pill.active { background: #e0f2f1; color: #004B49; }
+  .status-pill.done { background: #e8fdf0; color: #1a7a3a; }
+  .status-pill.fail { background: #fdecea; color: #c43737; }
+
+  /* ── Toggle ── */
+  details.card {
+    cursor: pointer;
+    transition: box-shadow 0.2s;
+  }
+  details.card summary {
+    font-weight: 700;
+    font-size: 0.9375rem;
+    color: #004B49;
+    cursor: pointer;
+    outline: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  details.card summary::-webkit-details-marker { color: #004B49; }
+  details.card[open] { background: #faf5f2; }
+
+  /* ── Responsive tweaks ── */
+  .tag-group { display: flex; flex-wrap: wrap; gap: 0.375rem; margin: 0.5rem 0; }
+
+  /* ── Reduced motion ── */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- ════════════════════════════════════════════ -->
+<!-- HERO -->
+<!-- ════════════════════════════════════════════ -->
+<div class="hero">
+  <div class="hero-tag">Bayanihan Finance · WOCEE 2026 · SparkFest 2026</div>
+  <h1>BANTAYOG</h1>
+  <p>LGU nutrition cash grants → nutrition-locked subsidies for the Philippine "First 1,000 Days" cohort. A printed QR <em>Nutri-Pass</em> replaces cash; credits are spent only on child-appropriate food at approved sari-sari stores, settled on Polygon Amoy testnet.</p>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 1. SYSTEM OVERVIEW -->
+<!-- ════════════════════════════════════════════ -->
+<h2>1. System Overview</h2>
+<p>One Next.js 16 PWA serves three surfaces, sandboxed by hostname. The web app is a <strong>view layer only</strong> — all business logic lives in the Hono 4 API server.</p>
+
+<svg class="diagram" viewBox="0 0 800 420" role="img" aria-label="System architecture diagram showing three user surfaces connecting through a Next.js PWA to the Hono API server, which talks to Supabase, Gemini AI, and Polygon Amoy blockchain">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#6b5e55"/>
+    </marker>
+    <linearGradient id="boxGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#004B49"/>
+      <stop offset="100%" stop-color="#017075"/>
+    </linearGradient>
+  </defs>
+
+  <!-- User surfaces -->
+  <rect x="20" y="20" width="160" height="60" rx="10" fill="#e3f0f2" stroke="#bdd5d6" stroke-width="1.5"/>
+  <text x="100" y="47" text-anchor="middle" font-size="12" font-weight="700" fill="#004B49">🏛️ LGU Admin</text>
+  <text x="100" y="63" text-anchor="middle" font-size="9" fill="#6b5e55">Registration, metrics, QR</text>
+
+  <rect x="20" y="100" width="160" height="60" rx="10" fill="#e3f0f2" stroke="#bdd5d6" stroke-width="1.5"/>
+  <text x="100" y="127" text-anchor="middle" font-size="12" font-weight="700" fill="#004B49">📱 Merchant POS</text>
+  <text x="100" y="143" text-anchor="middle" font-size="9" fill="#6b5e55">Scan, cart, checkout</text>
+
+  <rect x="20" y="180" width="160" height="60" rx="10" fill="#e3f0f2" stroke="#bdd5d6" stroke-width="1.5"/>
+  <text x="100" y="207" text-anchor="middle" font-size="12" font-weight="700" fill="#004B49">👁️ Balance View</text>
+  <text x="100" y="223" text-anchor="middle" font-size="9" fill="#6b5e55">Public, QR-authorized</text>
+
+  <!-- Legend note -->
+  <text x="20" y="270" font-size="9" fill="#9e8e82">All three on one Next.js 16 PWA → hostname sandbox</text>
+
+  <!-- Arrow from surfaces to Next.js -->
+  <line x1="180" y1="50" x2="260" y2="50" stroke="#6b5e55" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="180" y1="130" x2="260" y2="130" stroke="#6b5e55" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="180" y1="210" x2="260" y2="210" stroke="#6b5e55" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Next.js (the PWA) -->
+  <rect x="270" y="25" width="180" height="220" rx="12" fill="white" stroke="#e0d6cf" stroke-width="2"/>
+  <rect x="270" y="25" width="180" height="36" rx="12" fill="#004B49"/>
+  <rect x="270" y="49" width="180" height="12" fill="#004B49"/>
+  <text x="360" y="48" text-anchor="middle" font-size="11" font-weight="700" fill="white">apps/web — Next.js 16 PWA</text>
+  <text x="360" y="78" text-anchor="middle" font-size="9" fill="#6b5e55">Serwist service worker (offline)</text>
+  <text x="360" y="94" text-anchor="middle" font-size="9" fill="#6b5e55">No business logic — view only</text>
+  <text x="360" y="114" text-anchor="middle" font-size="9" fill="#6b5e55">React 19 · Tailwind 4 · Zustand 5</text>
+  <text x="360" y="134" text-anchor="middle" font-size="9" fill="#6b5e55">TanStack Query 5 · Serwist</text>
+  <text x="360" y="160" text-anchor="middle" font-size="8" fill="#9e8e82">/api/[...proxy] → forward to server</text>
+
+  <!-- Arrow from Next.js to API server -->
+  <line x1="450" y1="135" x2="540" y2="135" stroke="#6b5e55" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="495" y="128" text-anchor="middle" font-size="8" fill="#9e8e82">/api/*</text>
+
+  <!-- API server -->
+  <rect x="550" y="25" width="200" height="220" rx="12" fill="white" stroke="#bdd5d6" stroke-width="2"/>
+  <rect x="550" y="25" width="200" height="36" rx="12" fill="#017075"/>
+  <rect x="550" y="49" width="200" height="12" fill="#017075"/>
+  <text x="650" y="48" text-anchor="middle" font-size="11" font-weight="700" fill="white">apps/server — Hono 4 API</text>
+  <text x="650" y="78" text-anchor="middle" font-size="9" fill="#6b5e55">Routes → Services → Repositories</text>
+  <text x="650" y="94" text-anchor="middle" font-size="9" fill="#6b5e55">Domain/* pure functions</text>
+  <text x="650" y="114" text-anchor="middle" font-size="9" fill="#6b5e55">AppResult&lt;T&gt; (neverthrow)</text>
+  <text x="650" y="134" text-anchor="middle" font-size="9" fill="#6b5e55">Zod 4 validation</text>
+  <text x="650" y="154" text-anchor="middle" font-size="9" fill="#6b5e55">Pino logging · Upstash rate limit</text>
+
+  <!-- Downstream services -->
+  <rect x="550" y="270" width="200" height="46" rx="8" fill="#a8c8c9" stroke="#8ab0b2" stroke-width="1.5"/>
+  <text x="650" y="291" text-anchor="middle" font-size="11" font-weight="700" fill="#004B49">Supabase Postgres</text>
+  <text x="650" y="306" text-anchor="middle" font-size="9" fill="#004B49">Auth · Storage · settle_sale RPC</text>
+
+  <rect x="550" y="326" width="200" height="46" rx="8" fill="#f6e5e2" stroke="#e8c8c0" stroke-width="1.5"/>
+  <text x="650" y="347" text-anchor="middle" font-size="11" font-weight="700" fill="#c43737">Gemini AI</text>
+  <text x="650" y="362" text-anchor="middle" font-size="9" fill="#c43737">Vision · grounded price research</text>
+
+  <rect x="550" y="382" width="200" height="46" rx="8" fill="#e0f2f1" stroke="#b2dfdb" stroke-width="1.5"/>
+  <text x="650" y="403" text-anchor="middle" font-size="11" font-weight="700" fill="#004B49">Polygon Amoy</text>
+  <text x="650" y="418" text-anchor="middle" font-size="9" fill="#004B49">PHPC · PHPCSubsidy · viem 2</text>
+
+  <!-- Arrows from API to downstream -->
+  <line x1="650" y1="245" x2="650" y2="270" stroke="#6b5e55" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="650" y1="316" x2="650" y2="326" stroke="#6b5e55" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="650" y1="372" x2="650" y2="382" stroke="#6b5e55" stroke-width="1.5" marker-end="url(#arrow)"/>
+</svg>
+
+<div class="grid-2" style="margin-top: 1rem;">
+  <div class="card">
+    <h3>🏛️ LGU Admin</h3>
+    <p style="font-size: 0.875rem;">Routes: <code>/login</code>, <code>/admin/*</code></p>
+    <p style="font-size: 0.875rem;">Auth: Supabase email+password, <code>role === 'admin'</code></p>
+    <p style="font-size: 0.875rem;">Registration, tier computation, one-time allocation, QR pass issuance.</p>
+  </div>
+  <div class="card">
+    <h3>📱 Merchant POS</h3>
+    <p style="font-size: 0.875rem;">Routes: <code>/merchant-login</code>, <code>/dashboard</code>, <code>/cart/*</code>, <code>/checkout</code></p>
+    <p style="font-size: 0.875rem;">Auth: password on derived email <code>&lt;mobile&gt;@merchant.bantayog.local</code></p>
+    <p style="font-size: 0.875rem;">Product scan, cart, PIN verification, checkout via <code>settle_sale</code>.</p>
+  </div>
+  <div class="card">
+    <h3>👁️ Balance View</h3>
+    <p style="font-size: 0.875rem;">Route: <code>/balance?token=...</code></p>
+    <p style="font-size: 0.875rem;">Auth: none — the signed QR token is the authorization.</p>
+    <p style="font-size: 0.875rem;">Read-only: shows balance + last 50 transactions.</p>
+  </div>
+  <div class="card">
+    <h3>📃 Printed Nutri-Pass</h3>
+    <p style="font-size: 0.875rem;">The only interface for beneficiaries. No login, no app.</p>
+    <p style="font-size: 0.875rem;">Two QR codes: one JWS token for payment, one URL for balance view.</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 2. LAYER STACK -->
+<!-- ════════════════════════════════════════════ -->
+<h2>2. Layer Stack</h2>
+<p>The server follows a strict layered architecture. Each layer has one responsibility.</p>
+
+<div style="max-width: 600px; margin: 1.5rem 0;">
+  <div class="stack-layer layer-web">
+    <span class="layer-icon">🌐</span>
+    <span class="layer-name">apps/web</span>
+    <span class="layer-desc">Next.js 16 PWA — view layer only, no business logic</span>
+  </div>
+  <div class="stack-layer layer-api" style="margin-left: 1.5rem;">
+    <span class="layer-icon">🚪</span>
+    <span class="layer-name">Routes</span>
+    <span class="layer-desc">HTTP boundary — validates with zValidator, maps errors to status codes</span>
+  </div>
+  <div class="stack-layer layer-service" style="margin-left: 3rem;">
+    <span class="layer-icon">🗂️</span>
+    <span class="layer-name">Services</span>
+    <span class="layer-desc">Orchestration — returns AppResult&lt;T&gt;, no HTTP types</span>
+  </div>
+  <div class="stack-layer layer-domain" style="margin-left: 4.5rem;">
+    <span class="layer-icon">🧮</span>
+    <span class="layer-name">Domain</span>
+    <span class="layer-desc">Pure functions — injectable currentDate, no I/O</span>
+  </div>
+  <div class="stack-layer layer-db" style="margin-left: 6rem;">
+    <span class="layer-icon">🗄️</span>
+    <span class="layer-name">Repositories</span>
+    <span class="layer-desc">One class per table — extends BaseRepository, no policy</span>
+  </div>
+  <div class="stack-layer layer-db" style="margin-left: 6rem;">
+    <span class="layer-icon">📋</span>
+    <span class="layer-name">DTO / Mappers</span>
+    <span class="layer-desc">snake_case ↔ camelCase — the only translation point</span>
+  </div>
+  <div class="stack-layer layer-chain" style="margin-left: 3rem;">
+    <span class="layer-icon">⛓️</span>
+    <span class="layer-name">Lib / Gateways</span>
+    <span class="layer-desc">Errors, Logger, Supabase, Redis, Gemini, viem (chain client)</span>
+  </div>
+</div>
+
+<div class="callout">
+  <div class="callout-title">🏗️ Architecture rules</div>
+  <ul style="font-size: 0.875rem; margin-left: 1.25rem;">
+    <li>Route never talks to Supabase for a business decision.</li>
+    <li>Service never imports a Hono type and never throws for an expected failure.</li>
+    <li>Repository holds no policy — it reads and writes rows.</li>
+    <li>Domain function has no I/O — receives <code>currentDate</code> as an argument.</li>
+    <li><code>apps/web</code> holds no decision — server copy always wins.</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 3. TECHNOLOGY STACK -->
+<!-- ════════════════════════════════════════════ -->
+<h2>3. Technology Stack</h2>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>Area</th><th>Choice</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Frontend</strong></td><td>Next.js 16, React 19, Tailwind 4</td><td>App Router, Zustand 5, TanStack Query 5</td></tr>
+    <tr><td><strong>PWA</strong></td><td>@serwist/next</td><td>Service worker built from <code>app/sw.ts</code></td></tr>
+    <tr><td><strong>QR</strong></td><td>react-qr-code, html5-qrcode, @zxing/browser</td><td>Generate, scan, export (html-to-image)</td></tr>
+    <tr><td><strong>API</strong></td><td>Hono 4 on @hono/node-server</td><td>zValidator, pino logging</td></tr>
+    <tr><td><strong>Errors</strong></td><td>neverthrow</td><td>Services return <code>Promise&lt;AppResult&lt;T&gt;&gt;</code></td></tr>
+    <tr><td><strong>Validation</strong></td><td>Zod 4</td><td>Schemas in @bantayog/schema, shared by server + web</td></tr>
+    <tr><td><strong>Data</strong></td><td>Supabase (Postgres + Auth + Storage)</td><td>@supabase/supabase-js, @supabase/ssr</td></tr>
+    <tr><td><strong>Cache</strong></td><td>Upstash Redis</td><td>Sliding-window rate limits + PIN lockout</td></tr>
+    <tr><td><strong>Crypto</strong></td><td>@node-rs/argon2, jose, node:crypto</td><td>Argon2id PINs, JWS QR tokens, AES-256-GCM wallet keys</td></tr>
+    <tr><td><strong>AI</strong></td><td>@google/genai</td><td>Gemini vision + grounded research</td></tr>
+    <tr><td><strong>Chain</strong></td><td>viem 2, OpenZeppelin 5</td><td>UUPS proxy, XState 5 for tx lifecycle</td></tr>
+    <tr><td><strong>Tests</strong></td><td>Vitest 2, fast-check</td><td>Property-based tests</td></tr>
+    <tr><td><strong>Contracts</strong></td><td>Solidity 0.8.28, Hardhat 3</td><td>PHPC, PHPCSubsidy, UUPSProxy</td></tr>
+    <tr><td><strong>Mobile</strong></td><td>Capacitor 8 Android APK</td><td>Merchant-only static export of apps/web</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 4. CORE FLOWS -->
+<!-- ════════════════════════════════════════════ -->
+<h2>4. Core Flows</h2>
+
+<!-- 4.1 Registration -->
+<details class="card" open>
+  <summary>4.1 &nbsp;Beneficiary Registration (Admin)</summary>
+  <div style="margin-top: 1rem;">
+    <div class="flow-step">
+      <div class="flow-step-num">1</div>
+      <div class="flow-step-content">
+        <div class="label">Guardian provides details</div>
+        <div class="desc">Name, mobile, child name, age, monthly income, GPS location, card serial, 6-digit PIN</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">2</div>
+      <div class="flow-step-content">
+        <div class="label">PIN hashed (Argon2id)</div>
+        <div class="desc">PIN is never stored in plaintext. <code>@node-rs/argon2</code> produces the hash and salt.</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">3</div>
+      <div class="flow-step-content">
+        <div class="label">Tier computed</div>
+        <div class="desc"><code>computeTier(currentDate)</code> — Tier 1 (Critical) if age ≤ 1,000 days from conception (≤ 730 days from birth), else Tier 2 (Standard). Pure function.</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">4</div>
+      <div class="flow-step-content">
+        <div class="label">Custodial EVM wallet generated</div>
+        <div class="desc">A beneficiary wallet is created. Private key stored as AES-256-GCM ciphertext — never stored or logged in plaintext.</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">5</div>
+      <div class="flow-step-content">
+        <div class="label">Signed QR token generated</div>
+        <div class="desc">JWS compact JWT embedding <code>beneficiaryId</code>, <code>walletRef</code>, <code>tier</code>, <code>childName</code>, <code>guardianName</code>.</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num">6</div>
+      <div class="flow-step-content">
+        <div class="label">Nutri-Pass printed</div>
+        <div class="desc">Two QR codes: one JWS token for payment, one URL for balance view. Printed on the physical card.</div>
+      </div>
+    </div>
+  </div>
+</details>
+
+<!-- 4.2 Product Scan -->
+<details class="card">
+  <summary>4.2 &nbsp;Product Scan → Cart (Merchant)</summary>
+  <div style="margin-top: 1rem;">
+
+  <h4>Branded Items</h4>
+  <div class="flow-step">
+    <div class="flow-step-num">1</div>
+    <div class="flow-step-content">
+      <div class="label">Capture photo</div>
+      <div class="desc">Merchant photographs a branded product through the camera viewfinder.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num coral">2</div>
+    <div class="flow-step-content">
+      <div class="label">POST /api/vision/analyze-scan</div>
+      <div class="desc">Gemini analyzes the image. Returns: <code>blurry | unrecognized | identified</code>, child-friendliness verdict, flagged ingredients, category, and researched PHP base price.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num">3</div>
+    <div class="flow-step-content">
+      <div class="label">Product upsert</div>
+      <div class="desc">Identified products are upserted into <code>products</code> catalog. Price range = base ± 10, eligibility from verdict, category defaults to <code>Draft</code> when unknown.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num">4</div>
+    <div class="flow-step-content">
+      <div class="label">Review & add to cart</div>
+      <div class="desc">Merchant reviews AI analysis, adjusts price/quantity, then adds to cart.</div>
+    </div>
+  </div>
+
+  <h4 style="margin-top: 1.5rem;">Non-Branded Items (Palengke)</h4>
+  <div class="flow-step">
+    <div class="flow-step-num">1</div>
+    <div class="flow-step-content">
+      <div class="label">Capture photo + manual entry</div>
+      <div class="desc">Merchant captures a photo of the produce and enters product name, price, and unit (per kilo, per piece, etc.).</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num amber">2</div>
+    <div class="flow-step-content">
+      <div class="label">POST /api/vision/validate-non-branded</div>
+      <div class="desc">Gemini validates the image + manual entry against <code>market_prices</code> reference data. Returns: justified/unjustified verdict, child-friendliness, and market price range.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num">3</div>
+    <div class="flow-step-content">
+      <div class="label">Add to cart</div>
+      <div class="desc">Only if AI validation passes (justified + child-friendly).</div>
+    </div>
+  </div>
+
+  <div class="callout callout-tip" style="margin-top: 1rem;">
+    <div class="callout-title">🎯 Eligibility rule</div>
+    <p style="font-size: 0.8125rem; margin: 0;">Eligibility always comes from the <code>products</code> catalog, never from the AI model directly (ADR-003). The AI guides, the catalog decides.</p>
+  </div>
+  </div>
+</details>
+
+<!-- 4.3 Checkout -->
+<details class="card" open>
+  <summary>4.3 &nbsp;Checkout — The Critical Money Path</summary>
+  <div style="margin-top: 1rem;">
+  <p style="font-size: 0.875rem; color: #6b5e55; margin-bottom: 0.75rem;">This is the most important flow in the system. Every step is ordered and guarded.</p>
+
+  <div class="flow-step">
+    <div class="flow-step-num">1</div>
+    <div class="flow-step-content">
+      <div class="label">Merchant is APPROVED</div>
+      <div class="desc">Only APPROVED merchants can create transactions. <code>PENDING | REJECTED | SUSPENDED</code> merchants are rejected.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num">2</div>
+    <div class="flow-step-content">
+      <div class="label">Verify QR token (JWS HS256)</div>
+      <div class="desc">The signed JWT from the Nutri-Pass is decoded and verified. Rejects invalid/expired tokens.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num">3</div>
+    <div class="flow-step-content">
+      <div class="label">Check qr_passes.expires_at</div>
+      <div class="desc">⚠️ <strong>Known gap:</strong> <code>revoked</code> is NOT checked here — only checked in <code>POST /api/auth/verify-qr</code>.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num">4</div>
+    <div class="flow-step-content">
+      <div class="label">Beneficiary not SUSPENDED / INELIGIBLE</div>
+      <div class="desc">Blocked statuses prevent the transaction.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num">5</div>
+    <div class="flow-step-content">
+      <div class="label">Verify guardian PIN (Argon2id + lockout)</div>
+      <div class="desc">6-digit PIN checked against stored hash. Lockout prevents brute-force (Upstash Redis).</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num">6</div>
+    <div class="flow-step-content">
+      <div class="label">Validate total > 0</div>
+      <div class="desc">Reject non-positive purchase amounts.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num">7</div>
+    <div class="flow-step-content">
+      <div class="label">Check sufficient credit balance</div>
+      <div class="desc">Compare total against <code>beneficiaries.credit_balance</code>.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num coral">8</div>
+    <div class="flow-step-content">
+      <div class="label">settle_sale RPC — atomic money movement</div>
+      <div class="desc">SECURITY DEFINER Postgres function. Does <code>SELECT ... FOR UPDATE</code> on beneficiary, deducts credit, credits merchant, inserts transaction as <code>CONFIRMED</code>.</div>
+    </div>
+  </div>
+
+  <svg class="diagram" viewBox="0 0 720 300" role="img" aria-label="Checkout flow diagram showing merchant app, server, and Postgres interactions">
+    <defs>
+      <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+        <path d="M0,0 L10,5 L0,10 Z" fill="#6b5e55"/>
+      </marker>
+    </defs>
+    <!-- Columns -->
+    <text x="100" y="25" text-anchor="middle" font-size="11" font-weight="700" fill="#004B49">📱 Merchant App</text>
+    <text x="360" y="25" text-anchor="middle" font-size="11" font-weight="700" fill="#004B49">🖥️ Server</text>
+    <text x="620" y="25" text-anchor="middle" font-size="11" font-weight="700" fill="#004B49">🗄️ Postgres</text>
+
+    <line x1="10" y1="32" x2="710" y2="32" stroke="#e0d6cf" stroke-width="1"/>
+
+    <!-- POST request -->
+    <line x1="200" y1="60" x2="300" y2="60" stroke="#6b5e55" stroke-width="1.5" marker-end="url(#a)"/>
+    <text x="250" y="55" text-anchor="middle" font-size="8" fill="#9e8e82">POST /api/transactions</text>
+    <text x="250" y="75" text-anchor="middle" font-size="8" fill="#9e8e82">qrToken, pin, items, idempotencyKey</text>
+
+    <!-- Steps 1-7 on server -->
+    <rect x="310" y="90" width="180" height="85" rx="6" fill="#f6e5e2" stroke="#e8c8c0" stroke-width="1"/>
+    <text x="400" y="108" text-anchor="middle" font-size="9" font-weight="600" fill="#c43737">1-7 Validation Checks</text>
+    <text x="400" y="124" text-anchor="middle" font-size="8" fill="#6b5e55">Merchant APPROVED ✓</text>
+    <text x="400" y="138" text-anchor="middle" font-size="8" fill="#6b5e55">QR token ✓</text>
+    <text x="400" y="152" text-anchor="middle" font-size="8" fill="#6b5e55">PIN ✓</text>
+    <text x="400" y="166" text-anchor="middle" font-size="8" fill="#6b5e55">Balance ✓</text>
+
+    <!-- settle_sale call -->
+    <line x1="490" y1="180" x2="560" y2="180" stroke="#017075" stroke-width="2" marker-end="url(#a)"/>
+    <text x="525" y="175" text-anchor="middle" font-size="8" fill="#017075" font-weight="600">settle_sale()</text>
+
+    <rect x="560" y="195" width="140" height="65" rx="6" fill="#e0f2f1" stroke="#b2dfdb" stroke-width="1.5"/>
+    <text x="630" y="213" text-anchor="middle" font-size="9" font-weight="600" fill="#004B49">Atomic RPC</text>
+    <text x="630" y="228" text-anchor="middle" font-size="8" fill="#004B49">SELECT ... FOR UPDATE</text>
+    <text x="630" y="242" text-anchor="middle" font-size="8" fill="#004B49">Credit ↓ | Merchant ↑</text>
+    <text x="630" y="256" text-anchor="middle" font-size="8" fill="#004B49">INSERT CONFIRMED</text>
+
+    <!-- Response -->
+    <line x1="400" y1="195" x2="250" y2="240" stroke="#6b5e55" stroke-width="1.5" marker-end="url(#a)"/>
+    <text x="310" y="235" text-anchor="middle" font-size="8" fill="#9e8e82">201 + DTO + remainingBalance</text>
+  </svg>
+
+  <div class="callout callout-warn">
+    <div class="callout-title">⚠️ Known gaps in checkout</div>
+    <ul style="font-size: 0.8125rem; margin-left: 1.25rem;">
+      <li><strong>revoked not checked:</strong> <code>qr_passes.revoked</code> is only checked by <code>POST /api/auth/verify-qr</code>, not by checkout.</li>
+      <li><strong>No outbox row written:</strong> The live checkout path writes no outbox row. The reconcile cron has nothing to drain from a real sale.</li>
+      <li><strong>Response assembled in memory:</strong> <code>totalCreditDeducted</code>, <code>stablecoinAmountWei: '0'</code>, and <code>confirmedAt</code> are computed locally but not persisted by <code>settle_sale</code>.</li>
+    </ul>
+  </div>
+  </div>
+</details>
+
+<!-- 4.4 Chain Settlement -->
+<details class="card">
+  <summary>4.4 &nbsp;Chain Settlement — Cron Reconciliation</summary>
+  <div style="margin-top: 1rem;">
+  <p style="font-size: 0.875rem; color: #6b5e55;">A scheduled cron job (via cron-job.org) drains the outbox and settles on-chain.</p>
+
+  <div class="flow-step">
+    <div class="flow-step-num">1</div>
+    <div class="flow-step-content">
+      <div class="label">POST /api/cron/reconcile</div>
+      <div class="desc">Bearer CRON_SECRET authentication. Loads chain config via <code>loadChainConfig</code>.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num">2</div>
+    <div class="flow-step-content">
+      <div class="label">Claim up to 20 outbox rows</div>
+      <div class="desc"><code>status = PENDING</code>, <code>kind = TRANSACTION_CHAIN_SUBMIT</code>. Each row updated to <code>PROCESSING</code>.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num">3</div>
+    <div class="flow-step-content">
+      <div class="label">Transfer PHPC on-chain</div>
+      <div class="desc">Treasury → merchant wallet via ERC-20 transfer. Waits for confirmation receipt.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num">4</div>
+    <div class="flow-step-content">
+      <div class="label">Success → DONE + CONFIRMED</div>
+      <div class="desc">Outbox = <code>DONE</code>, transaction = <code>CONFIRMED</code> with <code>onchain_tx_hash</code>.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num coral">5</div>
+    <div class="flow-step-content">
+      <div class="label">Failure → retry up to 3 → FAILED</div>
+      <div class="desc">At 3 attempts: outbox = <code>FAILED</code>, transaction = <code>FAILED</code>. Balance-restoration compensator writes <code>BALANCE_RESTORATION_AUDIT</code>.</div>
+    </div>
+  </div>
+  </div>
+</details>
+
+<!-- 4.5 Allocation -->
+<details class="card">
+  <summary>4.5 &nbsp;One-Time Allocation</summary>
+  <div style="margin-top: 1rem;">
+  <div class="flow-step">
+    <div class="flow-step-num">1</div>
+    <div class="flow-step-content">
+      <div class="label">Admin triggers allocation</div>
+      <div class="desc">POST request for a specific beneficiary.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num">2</div>
+    <div class="flow-step-content">
+      <div class="label">Tier computed → amount derived</div>
+      <div class="desc"><code>computeTier(currentDate)</code> → Tier 1 = 5,000 PHPC, Tier 2 = 3,500 PHPC. Amount never from request body.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num">3</div>
+    <div class="flow-step-content">
+      <div class="label">Insert allocations row</div>
+      <div class="desc"><code>beneficiary_id UNIQUE</code> is the idempotency guard — each beneficiary gets one allocation.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num">4</div>
+    <div class="flow-step-content">
+      <div class="label">Chain allocateCredits</div>
+      <div class="desc">Calls <code>PHPCSubsidy.allocateCredits(keccak256(beneficiaryId), amountWei)</code>. Waits up to 60s for confirmation.</div>
+    </div>
+  </div>
+  </div>
+</details>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 5. DATA MODEL -->
+<!-- ════════════════════════════════════════════ -->
+<h2>5. Data Model</h2>
+
+<svg class="diagram" viewBox="0 0 760 520" role="img" aria-label="Entity-relationship diagram showing the core tables and their relationships">
+  <defs>
+    <marker id="arrowRel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#017075"/>
+    </marker>
+  </defs>
+
+  <!-- Beneficiaries -->
+  <rect x="10" y="10" width="220" height="170" rx="8" fill="white" stroke="#bdd5d6" stroke-width="2"/>
+  <rect x="10" y="10" width="220" height="28" rx="8" fill="#004B49"/>
+  <rect x="10" y="28" width="220" height="10" fill="#004B49"/>
+  <text x="120" y="30" text-anchor="middle" font-size="10" font-weight="700" fill="white">beneficiaries</text>
+  <text x="20" y="52" font-size="8" fill="#6b5e55">id (PK)</text>
+  <text x="20" y="66" font-size="8" fill="#6b5e55">guardian_name, guardian_mobile_hash</text>
+  <text x="20" y="80" font-size="8" fill="#6b5e55">child_name, child_age_months</text>
+  <text x="20" y="94" font-size="8" fill="#6b5e55">monthly_income_php, gps lat/lng</text>
+  <text x="20" y="108" font-size="8" fill="#6b5e55">pin_hash_argon2id, pin_salt</text>
+  <text x="20" y="122" font-size="8" fill="#6b5e55">credit_balance NUMERIC(12,2) ≥ 0</text>
+  <text x="20" y="136" font-size="8" fill="#6b5e55">eligibility_status</text>
+  <text x="20" y="150" font-size="8" fill="#6b5e55">card_serial (UNIQUE)</text>
+  <text x="20" y="164" font-size="8" fill="#6b5e55">intervention_tier ∈ {1,2}</text>
+
+  <!-- beneficiary_wallets -->
+  <rect x="270" y="10" width="220" height="120" rx="8" fill="white" stroke="#bdd5d6" stroke-width="2"/>
+  <rect x="270" y="10" width="220" height="28" rx="8" fill="#017075"/>
+  <rect x="270" y="28" width="220" height="10" fill="#017075"/>
+  <text x="380" y="30" text-anchor="middle" font-size="10" font-weight="700" fill="white">beneficiary_wallets</text>
+  <text x="280" y="52" font-size="8" fill="#6b5e55">beneficiary_id (PK, FK → beneficiaries)</text>
+  <text x="280" y="66" font-size="8" fill="#6b5e55">address (UNIQUE, 0x+40 hex CHECK)</text>
+  <text x="280" y="80" font-size="8" fill="#6b5e55">enc_ciphertext</text>
+  <text x="280" y="94" font-size="8" fill="#6b5e55">enc_iv</text>
+  <text x="280" y="108" font-size="8" fill="#6b5e55">enc_auth_tag</text>
+
+  <line x1="230" y1="70" x2="268" y2="70" stroke="#017075" stroke-width="1" marker-end="url(#arrowRel)"/>
+  <text x="249" y="66" text-anchor="middle" font-size="7" fill="#017075">1:1</text>
+
+  <!-- Merchants -->
+  <rect x="10" y="200" width="220" height="150" rx="8" fill="white" stroke="#bdd5d6" stroke-width="2"/>
+  <rect x="10" y="200" width="220" height="28" rx="8" fill="#004B49"/>
+  <rect x="10" y="218" width="220" height="10" fill="#004B49"/>
+  <text x="120" y="220" text-anchor="middle" font-size="10" font-weight="700" fill="white">merchants</text>
+  <text x="20" y="242" font-size="8" fill="#6b5e55">id (PK)</text>
+  <text x="20" y="256" font-size="8" fill="#6b5e55">auth_user_id → auth.users</text>
+  <text x="20" y="270" font-size="8" fill="#6b5e55">store_name, owner_name</text>
+  <text x="20" y="284" font-size="8" fill="#6b5e55">mobile_number_e164</text>
+  <text x="20" y="298" font-size="8" fill="#6b5e55">wallet_address (nullable)</text>
+  <text x="20" y="312" font-size="8" fill="#6b5e55">wallet_balance NUMERIC(12,2) ≥ 0</text>
+  <text x="20" y="326" font-size="8" fill="#6b5e55">cashout_in_progress</text>
+  <text x="20" y="340" font-size="8" fill="#6b5e55">status ∈ {PENDING, APPROVED, ...}</text>
+
+  <!-- Transactions -->
+  <rect x="270" y="200" width="220" height="150" rx="8" fill="white" stroke="#bdd5d6" stroke-width="2"/>
+  <rect x="270" y="200" width="220" height="28" rx="8" fill="#017075"/>
+  <rect x="270" y="218" width="220" height="10" fill="#017075"/>
+  <text x="380" y="220" text-anchor="middle" font-size="10" font-weight="700" fill="white">transactions</text>
+  <text x="280" y="242" font-size="8" fill="#6b5e55">id (PK)</text>
+  <text x="280" y="256" font-size="8" fill="#6b5e55">beneficiary_id (FK)</text>
+  <text x="280" y="270" font-size="8" fill="#6b5e55">merchant_id (FK)</text>
+  <text x="280" y="284" font-size="8" fill="#6b5e55">item_list_jsonb</text>
+  <text x="280" y="298" font-size="8" fill="#6b5e55">total_amount</text>
+  <text x="280" y="312" font-size="8" fill="#6b5e55">status ∈ {PENDING_CHAIN, SUBMITTED,</text>
+  <text x="280" y="326" font-size="8" fill="#6b5e55">CONFIRMED, RECONCILED, FAILED}</text>
+  <text x="280" y="340" font-size="8" fill="#6b5e55">idempotency_key (UNIQUE)</text>
+
+  <line x1="230" y1="260" x2="268" y2="260" stroke="#017075" stroke-width="1" marker-end="url(#arrowRel)"/>
+  <text x="249" y="256" text-anchor="middle" font-size="7" fill="#017075">1:N</text>
+
+  <!-- Products -->
+  <rect x="10" y="370" width="220" height="120" rx="8" fill="white" stroke="#bdd5d6" stroke-width="2"/>
+  <rect x="10" y="370" width="220" height="28" rx="8" fill="#004B49"/>
+  <rect x="10" y="388" width="220" height="10" fill="#004B49"/>
+  <text x="120" y="390" text-anchor="middle" font-size="10" font-weight="700" fill="white">products</text>
+  <text x="20" y="412" font-size="8" fill="#6b5e55">id (PK)</text>
+  <text x="20" y="426" font-size="8" fill="#6b5e55">name, category</text>
+  <text x="20" y="440" font-size="8" fill="#6b5e55">eligibility_status ∈ {eligible, ineligible}</text>
+  <text x="20" y="454" font-size="8" fill="#6b5e55">price_range_min/max</text>
+  <text x="20" y="468" font-size="8" fill="#6b5e55">image_url, reference_image_url</text>
+  <text x="20" y="482" font-size="8" fill="#6b5e55">image_embedding vector(768)</text>
+
+  <!-- qr_passes -->
+  <rect x="270" y="370" width="220" height="100" rx="8" fill="white" stroke="#bdd5d6" stroke-width="2"/>
+  <rect x="270" y="370" width="220" height="28" rx="8" fill="#017075"/>
+  <rect x="270" y="388" width="220" height="10" fill="#017075"/>
+  <text x="380" y="390" text-anchor="middle" font-size="10" font-weight="700" fill="white">qr_passes</text>
+  <text x="280" y="412" font-size="8" fill="#6b5e55">id (PK)</text>
+  <text x="280" y="426" font-size="8" fill="#6b5e55">beneficiary_id (FK)</text>
+  <text x="280" y="440" font-size="8" fill="#6b5e55">token_payload (the JWS)</text>
+  <text x="280" y="454" font-size="8" fill="#6b5e55">issued_at, expires_at (nullable)</text>
+  <text x="280" y="468" font-size="8" fill="#6b5e55">revoked</text>
+
+  <line x1="230" y1="410" x2="268" y2="410" stroke="#017075" stroke-width="1" marker-end="url(#arrowRel)"/>
+  <text x="249" y="406" text-anchor="middle" font-size="7" fill="#017075">1:N</text>
+
+  <!-- Additional tables legend -->
+  <rect x="520" y="10" width="220" height="100" rx="8" fill="#faf5f2" stroke="#e0d6cf" stroke-width="1"/>
+  <text x="630" y="30" text-anchor="middle" font-size="10" font-weight="700" fill="#004B49">Also</text>
+  <text x="530" y="48" font-size="8" fill="#6b5e55">allocations — one per beneficiary</text>
+  <text x="530" y="62" font-size="8" fill="#6b5e55">outbox — chain submission queue</text>
+  <text x="530" y="76" font-size="8" fill="#6b5e55">market_prices — DA/PSA reference</text>
+  <text x="530" y="90" font-size="8" fill="#6b5e55">photo_receipts — cart-photo refs</text>
+</svg>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 6. SMART CONTRACTS -->
+<!-- ════════════════════════════════════════════ -->
+<h2>6. Smart Contracts</h2>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>Contract</th><th>Role</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>PHPC.sol</strong></td><td>Mock PHP-pegged ERC-20, 18 decimals. The subsidy unit.</td></tr>
+    <tr><td><strong>PHPCSubsidy.sol</strong></td><td>UUPS-upgradeable subsidy logic. <code>onlyOwner</code> on <code>allocateCredits</code> and <code>processTransaction</code>.</td></tr>
+    <tr><td><strong>BeneficiaryRegistry.sol</strong></td><td>Kept from earlier design. Not part of the PHPC settlement path.</td></tr>
+    <tr><td><strong>MerchantRegistry.sol</strong></td><td>Kept from earlier design. Not part of the PHPC settlement path.</td></tr>
+    <tr><td><strong>UUPSProxy.sol</strong></td><td>Proxy plumbing for upgradeability.</td></tr>
+    <tr><td><strong>PHPCSubsidyV2Mock.sol</strong></td><td>Storage-layout test fixture for upgrade verification.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<svg class="diagram" viewBox="0 0 700 160" role="img" aria-label="Smart contract architecture showing the proxy pattern">
+  <!-- UUPS Proxy -->
+  <rect x="20" y="40" width="200" height="60" rx="8" fill="#e0f2f1" stroke="#b2dfdb" stroke-width="2"/>
+  <text x="120" y="68" text-anchor="middle" font-size="11" font-weight="700" fill="#004B49">UUPSProxy</text>
+  <text x="120" y="84" text-anchor="middle" font-size="8" fill="#6b5e55">upgradeTo(address)</text>
+
+  <!-- Arrow to implementation -->
+  <line x1="220" y1="70" x2="260" y2="70" stroke="#017075" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="240" y="66" text-anchor="middle" font-size="7" fill="#017075">delegatecall</text>
+
+  <!-- PHPCSubsidy -->
+  <rect x="270" y="15" width="200" height="60" rx="8" fill="white" stroke="#bdd5d6" stroke-width="2"/>
+  <text x="370" y="43" text-anchor="middle" font-size="11" font-weight="700" fill="#004B49">PHPCSubsidy v1</text>
+  <text x="370" y="59" text-anchor="middle" font-size="8" fill="#6b5e55">allocateCredits, processTransaction</text>
+
+  <!-- PHPCSubsidyV2 -->
+  <rect x="270" y="90" width="200" height="60" rx="8" fill="white" stroke="#bdd5d6" stroke-width="2" stroke-dasharray="4,3"/>
+  <text x="370" y="118" text-anchor="middle" font-size="11" font-weight="700" fill="#6b5e55">PHPCSubsidy v2</text>
+  <text x="370" y="134" text-anchor="middle" font-size="8" fill="#6b5e55">+ version() function</text>
+
+  <!-- Upgrade arrow -->
+  <line x1="470" y1="45" x2="520" y2="45" stroke="#6b5e55" stroke-width="1" marker-end="url(#arrow)"/>
+  <text x="495" y="41" text-anchor="middle" font-size="7" fill="#6b5e55">upgrade</text>
+
+  <!-- PHPC token -->
+  <rect x="520" y="30" width="160" height="60" rx="8" fill="#e8fdf0" stroke="#a8d8a8" stroke-width="2"/>
+  <text x="600" y="58" text-anchor="middle" font-size="11" font-weight="700" fill="#1a7a3a">PHPC ERC-20</text>
+  <text x="600" y="74" text-anchor="middle" font-size="8" fill="#1a7a3a">transfer, balanceOf</text>
+
+  <line x1="370" y1="75" x2="370" y2="90" stroke="#017075" stroke-width="1" marker-end="url(#arrow)" stroke-dasharray="4,3"/>
+  <text x="385" y="85" text-anchor="middle" font-size="7" fill="#017075">future</text>
+
+  <line x1="470" y1="75" x2="520" y2="60" stroke="#017075" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="495" y="72" text-anchor="middle" font-size="7" fill="#017075">mint/transfer</text>
+</svg>
+
+<div class="callout callout-tip" style="margin-top: 1rem;">
+  <div class="callout-title">💰 Money model</div>
+  <p style="font-size: 0.8125rem; margin: 0;">PHP with 2 decimals → <code>NUMERIC(12,2)</code> in Postgres. Integer credits on-chain. <strong>1 credit = 1 PHPC = 1e18 wei</strong>. Cash-out converts with <code>BigInt(Math.round(amount * 100)) * 10n ** 16n</code>. No floats in credit math.</p>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 7. MONEY FLOW -->
+<!-- ════════════════════════════════════════════ -->
+<h2>7. Money Flow</h2>
+
+<svg class="diagram" viewBox="0 0 760 300" role="img" aria-label="Money flow diagram showing the full lifecycle of PHPC credits">
+  <!-- Stage boxes -->
+  <rect x="10" y="20" width="160" height="80" rx="8" fill="#e8fdf0" stroke="#a8d8a8" stroke-width="1.5"/>
+  <text x="90" y="48" text-anchor="middle" font-size="10" font-weight="700" fill="#1a7a3a">🏛️ LGU Treasury</text>
+  <text x="90" y="64" text-anchor="middle" font-size="8" fill="#1a7a3a">Fiat → PHPC stablecoin</text>
+  <text x="90" y="80" text-anchor="middle" font-size="8" fill="#1a7a3a">On-chain deposit</text>
+
+  <line x1="170" y1="60" x2="210" y2="60" stroke="#017075" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="190" y="55" text-anchor="middle" font-size="7" fill="#017075">allocate</text>
+
+  <rect x="220" y="20" width="160" height="80" rx="8" fill="#e0f2f1" stroke="#b2dfdb" stroke-width="1.5"/>
+  <text x="300" y="48" text-anchor="middle" font-size="10" font-weight="700" fill="#004B49">👤 Beneficiary</text>
+  <text x="300" y="64" text-anchor="middle" font-size="8" fill="#004B49">Off-chain credit_balance</text>
+  <text x="300" y="80" text-anchor="middle" font-size="8" fill="#004B49">Tier 1: 5,000 · Tier 2: 3,500</text>
+
+  <line x1="380" y1="60" x2="420" y2="60" stroke="#017075" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="400" y="55" text-anchor="middle" font-size="7" fill="#017075">settle_sale</text>
+
+  <rect x="430" y="20" width="160" height="80" rx="8" fill="#e8fdf0" stroke="#a8d8a8" stroke-width="1.5"/>
+  <text x="510" y="48" text-anchor="middle" font-size="10" font-weight="700" fill="#1a7a3a">🏪 Merchant</text>
+  <text x="510" y="64" text-anchor="middle" font-size="8" fill="#1a7a3a">Off-chain wallet_balance</text>
+  <text x="510" y="80" text-anchor="middle" font-size="8" fill="#1a7a3a">Earns PHPC credits</text>
+
+  <line x1="590" y1="60" x2="630" y2="60" stroke="#017075" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="610" y="55" text-anchor="middle" font-size="7" fill="#017075">cash-out</text>
+
+  <rect x="640" y="20" width="110" height="80" rx="8" fill="#f6e5e2" stroke="#e8c8c0" stroke-width="1.5"/>
+  <text x="695" y="48" text-anchor="middle" font-size="10" font-weight="700" fill="#c43737">💰 Cash</text>
+  <text x="695" y="64" text-anchor="middle" font-size="8" fill="#c43737">PHP fiat</text>
+  <text x="695" y="80" text-anchor="middle" font-size="8" fill="#c43737">(manual)</text>
+
+  <!-- Off-chain label -->
+  <rect x="220" y="120" width="370" height="24" rx="4" fill="#faf5f2" stroke="#e0d6cf" stroke-width="1"/>
+  <text x="405" y="136" text-anchor="middle" font-size="8" fill="#6b5e55">Off-chain (Postgres, instant)</text>
+
+  <!-- On-chain label -->
+  <rect x="10" y="150" width="750" height="24" rx="4" fill="#faf5f2" stroke="#e0d6cf" stroke-width="1"/>
+  <text x="385" y="166" text-anchor="middle" font-size="8" fill="#6b5e55">On-chain (Polygon Amoy, async via outbox cron)</text>
+
+  <!-- On-chain boxes -->
+  <rect x="10" y="190" width="160" height="60" rx="6" fill="#e0f2f1" stroke="#b2dfdb" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="90" y="215" text-anchor="middle" font-size="9" font-weight="600" fill="#004B49">PHPC Treasury</text>
+  <text x="90" y="230" text-anchor="middle" font-size="7" fill="#6b5e55">Deployer holds supply</text>
+
+  <line x1="170" y1="220" x2="210" y2="220" stroke="#6b5e55" stroke-width="1" marker-end="url(#arrow)" stroke-dasharray="3,2"/>
+
+  <rect x="220" y="190" width="160" height="60" rx="6" fill="#e0f2f1" stroke="#b2dfdb" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="300" y="215" text-anchor="middle" font-size="9" font-weight="600" fill="#004B49">PHPCSubsidy</text>
+  <text x="300" y="230" text-anchor="middle" font-size="7" fill="#6b5e55">allocateCredits</text>
+
+  <line x1="380" y1="220" x2="420" y2="220" stroke="#6b5e55" stroke-width="1" marker-end="url(#arrow)" stroke-dasharray="3,2"/>
+
+  <rect x="430" y="190" width="160" height="60" rx="6" fill="#e0f2f1" stroke="#b2dfdb" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="510" y="215" text-anchor="middle" font-size="9" font-weight="600" fill="#004B49">Merchant Wallet</text>
+  <text x="510" y="230" text-anchor="middle" font-size="7" fill="#6b5e55">personal_sign ownership</text>
+
+  <!-- Outbox timing note -->
+  <line x1="510" y1="100" x2="510" y2="190" stroke="#017075" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="530" y="150" font-size="7" fill="#017075">outbox cron</text>
+</svg>
+
+<div class="callout callout-warn">
+  <div class="callout-title">⚠️ Known ADR drift</div>
+  <ul style="font-size: 0.8125rem; margin-left: 1.25rem;">
+    <li><strong>ADR-001 says:</strong> handler writes tx + outbox row atomically, returns <code>PENDING_CHAIN</code>. <strong>Code today:</strong> live checkout writes no outbox row, returns <code>CONFIRMED</code>.</li>
+    <li><strong>ADR-001 says:</strong> contract de-duplicates with transaction UUID. <strong>Code today:</strong> reconcile cron sends plain treasury-to-merchant transfer, doesn't call <code>processTransaction</code>.</li>
+    <li><strong>Status drift:</strong> Only 3 of 5 statuses are written: <code>PENDING_CHAIN</code> (TransactionService), <code>CONFIRMED</code> (settle_sale + cron), <code>FAILED</code> (cron). Never <code>SUBMITTED</code> or <code>RECONCILED</code>.</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 8. TRANSACTION STATUS MACHINE -->
+<!-- ════════════════════════════════════════════ -->
+<h2>8. Transaction Status Machine</h2>
+
+<svg class="diagram" viewBox="0 0 700 220" role="img" aria-label="State machine diagram of transaction lifecycle">
+  <!-- PENDING_CHAIN -->
+  <ellipse cx="120" cy="80" rx="70" ry="35" fill="#fef9e7" stroke="#f39c12" stroke-width="2"/>
+  <text x="120" y="75" text-anchor="middle" font-size="10" font-weight="700" fill="#8a6d1a">PENDING_CHAIN</text>
+  <text x="120" y="90" text-anchor="middle" font-size="7" fill="#8a6d1a">outbox → PROCESSING</text>
+
+  <!-- SUBMITTED -->
+  <ellipse cx="260" cy="80" rx="55" ry="30" fill="#e3f0f2" stroke="#017075" stroke-width="2"/>
+  <text x="260" y="75" text-anchor="middle" font-size="10" font-weight="700" fill="#017075">SUBMITTED</text>
+  <text x="260" y="90" text-anchor="middle" font-size="7" fill="#017075">tx broadcast</text>
+
+  <!-- CONFIRMED -->
+  <ellipse cx="400" cy="80" rx="55" ry="30" fill="#e8fdf0" stroke="#2ecc71" stroke-width="2"/>
+  <text x="400" y="75" text-anchor="middle" font-size="10" font-weight="700" fill="#1a7a3a">CONFIRMED</text>
+  <text x="400" y="90" text-anchor="middle" font-size="7" fill="#1a7a3a">receipt received</text>
+
+  <!-- FAILED -->
+  <ellipse cx="540" cy="80" rx="45" ry="30" fill="#fdecea" stroke="#e74c3c" stroke-width="2"/>
+  <text x="540" y="75" text-anchor="middle" font-size="10" font-weight="700" fill="#c43737">FAILED</text>
+  <text x="540" y="90" text-anchor="middle" font-size="7" fill="#c43737">3 retries</text>
+
+  <!-- RECONCILED -->
+  <ellipse cx="400" cy="170" rx="55" ry="30" fill="#e0f2f1" stroke="#004B49" stroke-width="2"/>
+  <text x="400" y="165" text-anchor="middle" font-size="10" font-weight="700" fill="#004B49">RECONCILED</text>
+  <text x="400" y="180" text-anchor="middle" font-size="7" fill="#004B49">on-chain + off-chain match</text>
+
+  <!-- Arrows -->
+  <line x1="190" y1="80" x2="204" y2="80" stroke="#017075" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="315" y1="80" x2="344" y2="80" stroke="#017075" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="455" y1="80" x2="494" y2="80" stroke="#017075" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Retry loop -->
+  <path d="M 540 110 Q 540 130 560 130 Q 580 130 580 110" fill="none" stroke="#e74c3c" stroke-width="1" stroke-dasharray="3,2"/>
+  <text x="570" y="126" font-size="7" fill="#c43737">retry ×3</text>
+
+  <!-- CONFIRMED → RECONCILED -->
+  <line x1="400" y1="110" x2="400" y2="139" stroke="#004B49" stroke-width="1" marker-end="url(#arrow)" stroke-dasharray="3,2"/>
+  <text x="415" y="128" font-size="7" fill="#004B49">cron</text>
+
+  <text x="120" y="145" text-anchor="middle" font-size="8" fill="#6b5e55">⬅ Written by TransactionService</text>
+  <text x="400" y="145" text-anchor="middle" font-size="8" fill="#6b5e55">⬅ settle_sale + reconcile cron</text>
+  <text x="540" y="145" text-anchor="middle" font-size="8" fill="#6b5e55">⬅ reconcile cron</text>
+
+  <div class="callout callout-warn" style="margin-top: 0.5rem;">
+    <div class="callout-title">💡 Observability note</div>
+    <p style="font-size: 0.8125rem; margin: 0;">Only 3 of 5 statuses are actually written: <code>PENDING_CHAIN</code>, <code>CONFIRMED</code>, and <code>FAILED</code>. <code>SUBMITTED</code> and <code>RECONCILED</code> are defined but never set. This means you cannot distinguish an off-chain settlement from a chain-confirmed one by status alone.</p>
+  </div>
+</svg>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 9. RATE LIMITS & SECURITY -->
+<!-- ════════════════════════════════════════════ -->
+<h2>9. Rate Limits & Security</h2>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>Endpoint</th><th>Limit</th><th>Window</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>POST /api/auth/login</code></td><td>5</td><td>60s</td></tr>
+    <tr><td><code>POST /api/auth/merchant-login</code></td><td>5</td><td>60s</td></tr>
+    <tr><td><code>POST /api/auth/verify-pin</code></td><td>3</td><td>60s</td></tr>
+    <tr><td><code>POST /api/vision/classify</code></td><td>10</td><td>60s</td></tr>
+    <tr><td><code>POST /api/vision/analyze-nutrition</code></td><td>10</td><td>60s</td></tr>
+    <tr><td><strong>Global</strong></td><td>100</td><td>60s</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <h4 style="margin-top: 0;">🔐 Security highlights</h4>
+    <ul style="font-size: 0.8125rem; margin-left: 1.25rem; margin-top: 0.5rem;">
+      <li>PINs: Argon2id hashed, never stored in plaintext</li>
+      <li>Wallet keys: AES-256-GCM ciphertext at rest</li>
+      <li>QR tokens: JWS HS256 signed</li>
+      <li>Rate limiting: Upstash sliding window</li>
+      <li>PIN lockout: Upstash Redis</li>
+      <li>Server uses service role key — bypasses RLS (defense in depth)</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4 style="margin-top: 0;">🚫 Never do</h4>
+    <ul style="font-size: 0.8125rem; margin-left: 1.25rem; margin-top: 0.5rem;">
+      <li>Wire a mainnet key or mainnet RPC</li>
+      <li>Reimplement balance math in TypeScript (use settle_sale)</li>
+      <li>Write <code>DB_RECORDED</code> or <code>BROADCAST</code> to transactions.status</li>
+      <li>Add mutating capability under <code>/api/balance</code></li>
+      <li>Commit <code>.env*</code> files</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 10. CURRENT DIFF EXPLANATION -->
+<!-- ════════════════════════════════════════════ -->
+<h2>10. Current Changes</h2>
+
+<div class="card">
+  <h3 style="margin-top: 0;">📁 What changed in the working tree</h3>
+
+  <div class="status-bar" style="margin-top: 0.75rem;">
+    <span class="status-pill done">Modified</span>
+    <span class="status-pill pending">Untracked</span>
+    <span class="status-pill fail">Deleted</span>
+  </div>
+
+  <div class="flow-step">
+    <div class="flow-step-num" style="background: #2ecc71;">✓</div>
+    <div class="flow-step-content">
+      <div class="label">Camera icon updated</div>
+      <div class="desc"><code>apps/web/public/merchantLogos/camera2.png</code> deleted → replaced with <code>cam-logo.png</code>. Both branded and non-branded scan pages now reference the new logo. Added <code>aria-label="Capture photo"</code> to the capture button.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num" style="background: #017075;">📄</div>
+    <div class="flow-step-content">
+      <div class="label">Community documentation added</div>
+      <div class="desc">New files: <code>AGENTS.md</code>, <code>docs/SHOWCASE.md</code>, <code>docs/context/</code> (ARCHITECTURE, DESIGN, PRD, SCHEMA, RULES), <code>.kiro/agents/</code>, <code>docs/handoff/</code>. These document the project's architecture, design system, product requirements, and showcase event facts.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num" style="background: #f39c12;">🔄</div>
+    <div class="flow-step-content">
+      <div class="label">Steering docs updated</div>
+      <div class="desc"><code>.kiro/steering/product.md</code>, <code>structure.md</code>, <code>tech.md</code> — updated to reflect WOCEE 2026 context, markdown formatting fixes, and reference to <code>SHOWCASE.md</code>.</div>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-step-num" style="background: #c43737;">🐛</div>
+    <div class="flow-step-content">
+      <div class="label">Minor doc fix (ADR-001)</div>
+      <div class="desc"><code>docs/adr/001-transactional-outbox.md</code> — stray <code>there's</code> before the title. Needs cleanup.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- 11. SHOWCASE CONTEXT -->
+<!-- ════════════════════════════════════════════ -->
+<h2>11. Showcase Context</h2>
+
+<div class="grid-2">
+  <div class="card">
+    <h3 style="margin-top: 0;">🎪 Cryptita Plays Builder Showcase</h3>
+    <div class="flow-step">
+      <div class="flow-step-num" style="background: #004B49;">📅</div>
+      <div class="flow-step-content">
+        <div class="label">August 8, 2026</div>
+        <div class="desc">SMX Convention Center Manila · WOCEE Main Stage</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num" style="background: #004B49;">🏆</div>
+      <div class="flow-step-content">
+        <div class="label">Bayanihan Finance</div>
+        <div class="desc">Payments, stablecoins, financial inclusion. ₱20,000 prize pool.</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-step-num" style="background: #004B49;">🎯</div>
+      <div class="flow-step-content">
+        <div class="label">Demo scope</div>
+        <div class="desc">Admin portal, merchant PWA, balance view, chain settlement. No new features for the stage.</div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top: 0;">📋 Repo-level drift (known)</h3>
+    <ul style="font-size: 0.8125rem; margin-left: 1.25rem; margin-top: 0.5rem;">
+      <li>Root <code>package.json</code> description still says "Ronin Saigon" — code targets Polygon Amoy</li>
+      <li><code>packages/db/src/types.ts</code> lags SQL migrations — check <code>data-model.md</code></li>
+      <li><code>apps/web</code> pins <code>vitest ^2.1.8</code> alongside <code>@vitest/coverage-v8 ^4.1.9</code></li>
+      <li>Two teal families: <code>brand-darkTeal (#004B49)</code> vs <code>primary-500 (#0b6e6e)</code></li>
+      <li>QR code <code>revoked</code> not checked in checkout path</li>
+      <li>No outbox row written on live checkout</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- FOOTER -->
+<!-- ════════════════════════════════════════════ -->
+<div style="margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #e0d6cf; text-align: center; font-size: 0.75rem; color: #9e8e82;">
+  <p>BANTAYOG visual explanation · Generated from project docs, code, and architecture</p>
+  <p>Source: <code>.freebuff/bantayog-visual-explanation.html</code></p>
+</div>
+
+</div><!-- /container -->
+</body>
+</html>

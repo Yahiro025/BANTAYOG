@@ -389,7 +389,7 @@ function AIScanContent() {
                       aria-label="Capture photo"
                     >
                       <img
-                        src="/merchantLogos/camera2.png"
+                        src="/merchantLogos/cam-logo.png"
                         alt=""
                         className="h-10 w-10"
                       />
