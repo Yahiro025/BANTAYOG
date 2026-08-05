@@ -68,11 +68,17 @@ async function refreshMerchantToken(refreshToken: string): Promise<string | null
 function isAdminEndpoint(url: string): boolean {
   const pathname = url.split("?", 1)[0];
 
+  // Explicitly merchant-only routes
+  if (pathname.startsWith("/api/merchants/me")) return false;
+  if (pathname.startsWith("/api/vision")) return false;
+
   return (
-    pathname === "/api/beneficiaries" ||
-    pathname.startsWith("/api/beneficiaries/") ||
-    pathname === "/api/merchants" ||
-    (pathname.startsWith("/api/merchants/") && !pathname.startsWith("/api/merchants/me"))
+    pathname.startsWith("/api/beneficiaries") ||
+    pathname.startsWith("/api/merchants") ||
+    pathname.startsWith("/api/analytics") ||
+    pathname.startsWith("/api/chain") ||
+    pathname.startsWith("/api/transactions") ||
+    pathname.startsWith("/api/products")
   );
 }
 
