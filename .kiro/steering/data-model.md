@@ -49,6 +49,48 @@ all of them — migration 00001 alone is out of date. Mirror every schema change
   unique on `(commodity_name, market_location, source, as_of_date)`.
 - **photo_receipts** — typed in `@bantayog/db` for expiring cart-photo references.
 
+## Approved Rural offline data model — planned
+
+ADR-004 approves eight additive objects. They are not in the current database:
+
+- `merchant_devices` — Rural device public key, merchant ownership, app variant, status, and key
+  version. The private key stays in Android Keystore.
+- `beneficiary_merchant_assignments` — administrator-approved beneficiary and Rural merchant
+  relationship, policy cap, validity, status, actors, reason, and audit timestamps.
+- `offline_merchant_certificates` — signed device-bound local capability certificates. They cannot
+  authorize sync, provisioning, release, cash-out, or administration.
+- `offline_credit_reservations` — a signed quota bound to one assignment, beneficiary, merchant, and device.
+  It lasts for at most 30 days. The server must count all active reservation remaining amounts
+  while it locks the beneficiary row. All devices for one merchant share one aggregate merchant
+  policy cap.
+- `offline_transaction_events` — append-only device-signed local sale events with unique sale ID,
+  assignment, local sequence, identification method, payload digest, and immutable server decision.
+- `offline_sync_receipts` — one acknowledgement per event: `accepted`, `rejected`, or `conflict`.
+- `offline_catalog_releases` — immutable canonical signed product and commodity policy releases.
+- `offline_conflict_reviews` — append-only admin actions that never change the original decision.
+
+The global invariant is:
+
+```text
+credit_balance - sum(active reservation remaining amounts) >= new reservation amount
+active distinct Rural merchant IDs with remaining reservation > 0 <= 7
+```
+
+The seventh distinct Rural merchant may receive a permit. An eighth distinct merchant must be
+rejected. Multiple devices for one merchant count as one merchant.
+
+The server uses receipt time for permit expiry. A device timestamp cannot extend a permit. Expiry
+or release removes the reservation from the active sum and never increments `credit_balance`.
+Signed payment payloads and application code use whole integer credits. Postgres money uses
+`NUMERIC(12,2)`, and offline credit amounts must have `.00`.
+
+For an accepted event, one Postgres transaction must move money, consume the reservation, insert
+the official transaction, store the final event decision, and insert the synchronization receipt.
+
+The implementation must add the next migration and mirror every row and function in
+`packages/db/src/types.ts` and `packages/db/src/types.test.ts`. `PENDING_SYNC` is a local or sync
+state. It is not a new `transactions.status` value.
+
 ## RPCs
 
 - `settle_sale(p_beneficiary_id, p_merchant_id, p_amount, p_items, p_transaction_id)` —

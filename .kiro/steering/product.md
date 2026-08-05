@@ -52,6 +52,32 @@ subdomain (localhost is exempt so all surfaces work in dev).
 - **Balance view (guardian).** Scanning the pass shows current balance plus up to 50 past
   transactions, read-only, no mutating controls.
 
+## Approved Urban and Rural merchant variants — planned
+
+ADR-004 defines two APK variants. Urban no-card payment uses an online beneficiary name search,
+then server-side PIN verification. Rural includes an assigned local beneficiary directory and can
+validate a selected beneficiary, a product, and a bounded permit while offline.
+
+An administrator approves each beneficiary Rural merchant assignment. A merchant cannot use a
+name, PIN, pass, or beneficiary identifier to self-assign. One beneficiary can have at most seven
+active distinct Rural merchant assignments.
+
+Rural devices never receive a full beneficiary balance. The backend reserves separate amounts for
+each beneficiary, merchant, and device before disconnection. It allows at most seven distinct Rural
+merchant IDs for one beneficiary and rejects an eighth; multiple devices for one merchant count as
+one merchant and share one aggregate merchant cap. A permit lasts for at most 30 days. The phone
+stops sales 24 hours before expiry, and the server must receive an event before expiry. Local sales
+remain pending until the server verifies the signed event and settles it. This extension is planned
+and is not implemented in the current checkout.
+
+Branded scanning is barcode-first in both APKs while online and in Rural while offline. Gemini is
+the online fallback identifier. The catalog decides eligibility. For Non-Branded items, the signed
+commodity policy decides item, unit, and price rules. Rural permit-backed sales create one local
+event before immediate upload or offline queue, so a timeout cannot create a second sale.
+
+GCash, GoTyme, and bank-account payouts are future partnership plans only. The current product
+does not include their provider integrations or real-money transfer UI.
+
 ## Product constraints
 
 - Offline tolerance matters: sari-sari stores have flaky data. The web app is a PWA (Serwist

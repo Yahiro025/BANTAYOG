@@ -34,6 +34,18 @@ apps/server/                 Hono 4 API — all business logic
   src/cron/                  reconcile.ts (outbox worker), tier-reeval.ts
   src/e2e/  src/static-checks/
 
+apps/mobile/                 Capacitor Android shell. It currently exists in the linked
+                             BANTAYOG-worktrees/merchant-apk worktree, but package.json and
+                             capacitor.config.ts are zero-byte placeholders. The planned Urban and
+                             Rural product flavors use Groovy Gradle files and namespace
+                             ph.bantayog.merchant. Shared Branded barcode code uses src/main.
+                             Rural-only catalog, OCR, storage, Keystore, verifier, trusted-time,
+                             retention, permit, event, and sync code uses its Rural source set
+
+Worktree split:              BANTAYOG-worktrees/merchant-apk owns Urban development.
+                             BANTAYOG-worktrees/merchant-apk-rural owns Rural development after
+                             the shared baseline commit. Final APKs use one integration revision
+
 packages/schema/             Zod DTOs + inferred types (@bantayog/schema)
 packages/db/                 Supabase Database types, BaseRepository, clients (@bantayog/db)
 packages/contracts/          Solidity + Hardhat 3 (PHPC, PHPCSubsidy, registries, UUPSProxy)

@@ -2,7 +2,8 @@
 
 Written in ASD-STE100 Simplified Technical English.
 
-This file describes the system as the code is now. The decision records in `docs/adr/` hold the
+This file describes the system as the code is now. Approved planned extensions are marked as
+planned and are not claims about the current code. The decision records in `docs/adr/` hold the
 reasons. Read this file for structure. Read an ADR for a trade-off. Section 8 lists the places
 where an ADR and the code disagree.
 
@@ -47,12 +48,16 @@ where an ADR and the code disagree.
 Money is off-chain first. The database holds the truth for the user interface. The chain holds the
 public record. ADR-001 gives the reason.
 
+The approved Rural extension uses two merchant APK variants. Urban uses the live backend for
+beneficiary name search without a card. Rural adds an assigned local directory and quota-limited
+offline sale recording. Neither build treats a local beneficiary balance as authoritative.
+
 ## 2. Deployment view
 
 | Component | Runtime | Notes |
 | --- | --- | --- |
 | `apps/web` | Next.js 16, port 3000 | PWA with a Serwist service worker. `/~offline` is the fallback document. Dev runs with `--webpack` |
-| `apps/mobile` | Capacitor 8.4.2 Android APK | Bundles a merchant-only static export of `apps/web`. Origin `https://localhost`, starts at `/merchant-login`, opens with no network. No middleware and no `/api` proxy, so it calls the API with an absolute URL and needs `https://localhost` in `CORS_ORIGIN`. See ADR-005 |
+| `apps/mobile` | Capacitor 8.4.2 Android APK variants | Bundles a merchant-only static export of `apps/web`. Urban is online-only for beneficiary lookup. Rural adds encrypted local storage, signed permits, offline product validation, and synchronization. The target origin is `https://localhost`, the start path is `/merchant-login`, and the API URL is absolute. The incomplete Android shell currently exists in the linked `BANTAYOG-worktrees/merchant-apk` worktree. Its package and Capacitor configuration files are zero-byte placeholders. The Rural extension is planned and is not implemented. |
 | `apps/server` | Hono on `@hono/node-server`, port 3001 | `GET /health` is public |
 | Database | Supabase Postgres | Extensions `pgvector` and `pg_trgm` |
 | Cache and limits | Upstash Redis | Sliding-window rate limits and the PIN lockout |
@@ -126,6 +131,7 @@ CORS (CORS_ORIGIN, default http://localhost:3000)
 | Anti-corruption layer | `dto/mappers.ts` | Database naming never leaks into the API. The snapshot test guards the shape |
 | Idempotency key | `transactions.idempotency_key` UNIQUE, and the key is the row id | A retried checkout cannot double spend |
 | Database-level atomicity | `settle_sale` RPC with `SELECT ... FOR UPDATE` | One transaction does the lock, the checks and the insert |
+| Quota-limited offline authorization | Rural build, signed permits, reservation-aware Postgres settlement | Partitions a beneficiary's available credits before devices disconnect. See ADR-004 |
 | Conditional-update lock | `merchants.cashout_in_progress` | Stops two concurrent cash-outs without a distributed lock |
 | Policy at the boundary | `requireRole` plus explicit ownership checks | RLS is defence in depth, because the server uses the service role key |
 | State machine (descriptive) | `services/transaction.machine.ts` (XState) | Documents the intended lifecycle. The routes do not drive it today |
@@ -228,6 +234,62 @@ printed pass ─► /balance?token=... ─► GET /api/balance/view
 
 This route is public and read-only. Never add a mutating endpoint under `/api/balance`.
 
+### 6.6 Approved Rural offline extension — planned
+
+This flow is approved by ADR-004 but is not implemented in the current checkout.
+
+```text
+Urban no-card:
+  live beneficiary name search → masked result → server PIN check → online settle_sale
+
+Rural provisioning while online:
+  admin-approved assignment → register device → download assigned directory and signed catalog
+  → reserve bounded credits for this beneficiary/merchant/device
+  → provision signed permit, offline merchant certificate, and device-bound offline PIN verifier
+
+Rural permit-backed sale while online or offline:
+  create one sale ID → shared Branded barcode or non-branded commodity validation
+  → Gemini identity fallback only when online and needed
+  → local beneficiary search or signed QR
+  → local PIN and permit checks → local atomic event/outbox write
+  → immediate sync when online, or PENDING_SYNC when allowed fallback applies
+
+Rural synchronization:
+  signed event upload → server signature, policy, permit, and idempotency checks
+  → reservation-aware Postgres settlement → official transaction and merchant balance
+```
+
+The Rural phone never receives a full beneficiary balance. Up to seven distinct Rural stores can
+serve one beneficiary while offline because the server has already partitioned the available amount
+across separate permits. The server counts distinct merchant IDs, not devices, and rejects a new
+permit for an eighth distinct Rural merchant. All devices for one merchant share one aggregate
+merchant policy cap. A permit lasts for at most 30 days, the phone stops sales 24 hours before
+expiry, and the server must receive an event before expiry. An online sale can use only the amount
+that is not reserved for Rural permits.
+
+Both APKs contain the shared Branded barcode scanner. The Rural source set alone contains the
+signed local catalog, OCR, encrypted directory, PIN verifier, merchant certificate, permits,
+trusted-time store, local event store, and sync worker. The catalog decides eligibility in all
+paths. Gemini is an online identifier only. Unknown items map to `OTHER` or `UNKNOWN` and block.
+
+Urban development uses the existing `BANTAYOG-worktrees/merchant-apk` worktree. Rural development
+uses `BANTAYOG-worktrees/merchant-apk-rural` after Task 0 creates it from the reviewed shared
+baseline commit. These worktrees isolate development only. Both final signed APKs must be built
+from one clean approved integration revision.
+
+Automatic Rural fallback applies to network, DNS, timeout, 408, 429, and 5xx. It does not bypass a
+valid ineligible result, invalid image, authentication failure, invalid signature, or invalid
+configuration. One local event and sale ID cover immediate upload, timeout, late response, retry,
+and offline queue.
+
+QR pass version 2 uses ES256 with no HMAC fallback. QR, permit, and catalog trust domains use
+separate keys and overlapping public-key rotation. Catalog release creation and conflict review
+are administrator operations. Catalog releases are immutable. Conflict reviews are append-only.
+
+GCash, GoTyme, and bank-account payouts are not part of this planned extension. They remain a
+future partnership plan that needs a separate approved design, provider integration, compliance,
+and security review.
+
 ## 7. Cross-cutting concerns
 
 | Concern | Implementation |
@@ -250,7 +312,8 @@ Fix the document or fix the code. Do not leave both wrong.
 | ADR-001 | The handler writes the transaction as `PENDING_CHAIN`, and checkout returns `PENDING_CHAIN` | `settle_sale` inserts the row as `CONFIRMED`. The route returns `CONFIRMED` |
 | ADR-001 | The contract de-duplicates with the transaction UUID | The reconcile cron sends a plain treasury-to-merchant transfer. It does not call `processTransaction` |
 | ADR-002 | — | Matches the code. `computeTier` runs on read, at scan time and in the nightly cron |
-| ADR-003 | Trigram fuzzy match against `products` | Matches the code for `/classify`. `/analyze-scan` upserts a draft row instead |
+| ADR-003 | The catalog decides eligibility | `/classify` uses catalog matching. `/analyze-scan` can use Gemini child-friendliness, create an unmatched row, and default a category. The offline plan must remove these authorization fallbacks and map unknown to `OTHER` or `UNKNOWN` |
+| ADR-004 | Rural uses assigned quota-limited offline permits, a local-first event, shared barcode, and Urban online name search | Planned. The current checkout has no assignment, Rural offline store, permit tables, QR version 2, catalog release workflow, conflict workflow, or synchronization endpoint |
 | `docs/adr/001-transactional-outbox.md` | — | The file starts with a stray `there's` before the title. Delete those characters |
 
 The `transactions.status` CHECK allows five values. The code writes only three:

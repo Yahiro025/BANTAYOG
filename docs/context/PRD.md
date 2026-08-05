@@ -89,6 +89,59 @@ few. Use Tagalog-friendly copy.
 - Push notifications and SMS.
 - Real DA or PSA price feeds. `market_prices` holds seeded reference rows.
 
+### Approved merchant build extension (planned)
+
+This extension is approved by ADR-004 but is not implemented in the current MVP code.
+
+There will be two merchant APK variants:
+
+- **Urban (Standard):** keeps the current merchant flow. When the card is not available, the
+  merchant searches the live backend by beneficiary name, selects a masked result, and enters the
+  beneficiary PIN. The backend resolves the beneficiary and verifies the PIN.
+- **Rural (Exclusive):** includes all Urban features and adds an assigned local beneficiary
+  directory, offline product validation, offline PIN validation, signed offline permits, local
+  sale records, and later synchronization.
+
+The Rural APK must not copy the official beneficiary balance. Before disconnection, the backend
+reserves bounded amounts for each beneficiary, merchant, and Rural device. The sum of all active
+reservations must stay within the beneficiary's unreserved credit. The backend may issue active
+permits to up to seven distinct Rural merchants for one beneficiary. It counts merchant IDs,
+rejects an eighth distinct merchant, and applies one aggregate cap across all devices of one
+merchant. A permit lasts for at most 30 days. The phone stops new sales 24 hours before expiry, and
+the server must receive the event before expiry. This lets multiple disconnected stores serve one
+beneficiary without giving them the same full balance.
+
+An administrator must approve each beneficiary-to-merchant assignment before a Rural merchant can
+search, provision, create a PIN verifier, or reserve credits. One beneficiary can have at most
+seven active distinct Rural merchant assignments. A merchant cannot self-assign by knowing a name,
+PIN, pass, or beneficiary identifier.
+
+Branded product scanning is barcode-first in both APKs while online. An exact barcode catalog hit
+does not need Gemini. Gemini remains the online fallback when a barcode is missing, unreadable, or
+unknown. Rural also uses barcode and bundled OCR while offline. The catalog is always the
+eligibility authority. Non-Branded items use a signed commodity list, unit rules, and price bounds.
+
+Rural permit-backed checkout creates one sale ID and one signed local event before the first upload
+attempt. If the network fails, the same event stays pending. A retry or late response cannot create
+a second official transaction. Offline fallback is allowed only for network, DNS, timeout, 408,
+429, or 5xx and only when all signed local prerequisites are valid.
+
+Offline no-card PIN validation is a bounded local deterrent. It locks after five failures until an
+online refresh. The controlled-pilot limits are 200 credits per sale, 500 credits in total, and
+three successful events. It is not cryptographic proof to the server that the guardian entered the
+PIN on a compromised phone.
+
+An offline Rural sale is a local `PENDING_SYNC` event. It becomes an official transaction and
+cash-out-eligible merchant balance only after server validation and reservation-aware settlement.
+
+QR pass version 2 will use ES256 with a minimal payload and no HMAC fallback. QR, permit, and
+catalog signatures use separate keys. Catalog releases are administrator-created, immutable,
+validated, signed, and installed atomically. Offline merchant certificates authorize local actions
+only. Conflict review is append-only. GCash, GoTyme, and bank transfers remain future partnership
+plans and are not part of this implementation.
+GCash, GoTyme, and bank-account transfers are not current scope. They are future partnership plans
+only and require a separate approved design and security review.
+
 ## 6. MVP definition
 
 The MVP is complete when one operator can run this path end to end on Stellar Testnet:

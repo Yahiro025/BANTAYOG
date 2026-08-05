@@ -69,6 +69,64 @@ beneficiary, vision endpoints 10/60s per merchant (Gemini quota guard), global 1
 - `DEPLOYER_PRIVATE_KEY` never crosses to the client. `.env*` files are gitignored except
   `.env.example`.
 
+## Approved Rural offline boundary — planned
+
+ADR-004 defines two merchant APK variants. Urban no-card payments use live beneficiary name search
+and server-side PIN verification. Rural no-card payments use an assigned local beneficiary
+directory and a separate device-bound offline PIN verifier.
+
+An administrator-approved beneficiary merchant assignment is required before search, provisioning,
+verifier creation, or reservation issuance. A merchant cannot self-assign. At most seven active
+distinct Rural merchant assignments can exist for one beneficiary.
+
+The Rural device must not store an official beneficiary balance or the canonical
+`pin_hash_argon2id` value. It stores only signed, bounded reservations and append-only local
+events. The server issues reservations while holding the beneficiary row lock and counts active
+reservations across all Rural merchants. It allows at most seven distinct Rural merchant IDs with
+active reservation remaining amounts for one beneficiary. Multiple devices for one merchant count
+as one merchant, share one aggregate merchant cap, and an eighth distinct merchant is rejected.
+
+A permit lasts for at most 30 days. The phone stops new sales 24 hours before expiry. The server
+uses receipt time, not the device timestamp, for expiry. Expiry or release never increments the
+beneficiary balance.
+
+Rural events are not official transactions until the server verifies the device signature, permit,
+catalog version, policy, amount, and idempotency key. Local pending earnings cannot be cashed out.
+This section describes the approved boundary; implementation is not complete in the current
+checkout.
+
+Five failed offline PIN attempts lock no-card payment until online re-provisioning. Signed no-card
+amount and event-count limits are mandatory. The first controlled-pilot upper limits are 200
+credits per sale, 500 credits in total, and three successful events. The local verifier does not
+give the server cryptographic proof of guardian consent on a compromised merchant phone.
+Routine policy updates use the permit-pinned versions. A current emergency revocation creates a
+conflict that needs review and does not increase cash-outable balance.
+
+QR pass version 2 uses ES256 P-256 with a minimal payload and no HMAC fallback. Every pass route
+checks expiry and revocation. QR, permit, and catalog signatures use separate key pairs with
+overlapping public-key rotation.
+
+The Rural APK requires a signed offline merchant certificate and native merchant unlock for local
+actions. Fresh online authentication is required for sync, provisioning, release, cash-out, and
+administration. One sale ID and local event cover upload, timeout, late response, retry, and queue.
+
+The shared Branded barcode scanner identifies products in both APKs. Gemini is an online fallback
+identifier only. The catalog decides eligibility. Rural fallback is allowed only for network, DNS,
+timeout, 408, 429, or 5xx and only with every signed local prerequisite. It cannot bypass an
+ineligible result, invalid image, authentication failure, invalid signature, or invalid configuration.
+
+Gemini requests use product-only crops and no beneficiary, guardian, merchant, PIN, pass, or
+transaction data. Recheck free-tier data-use terms before the demo. Real-user use needs a separate
+privacy and provider review.
+
+Catalog releases are immutable and atomically installed. Conflict reviews are append-only and
+cannot edit balances or the original decision. Local revocation purges directory and verifier data
+but keeps pending evidence. Device replacement never copies a private key.
+
+GCash, GoTyme, and bank-account payouts are future partnership plans only. Do not add provider
+credentials, provider API calls, or real-money payout UI until a later approved security and
+architecture decision.
+
 ## Known drift to be aware of
 
 - `docs/SECURITY.md` states scanned images are never stored. In the current `analyzeScan` path,

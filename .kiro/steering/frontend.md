@@ -36,6 +36,36 @@ surfaces; `middleware.ts` decides which one by hostname.
   `stores/auth-context.tsx`. `providers/pin-lock-provider.tsx` wraps the merchant surface.
 - Types come from `@bantayog/schema` / `@bantayog/db`. Do not redeclare DTO shapes locally.
 
+## Approved Urban and Rural build boundary — planned
+
+Urban and Rural APKs share the merchant screens. Urban no-card checkout uses the live beneficiary
+name search endpoint and server PIN verification. Rural adds the local beneficiary directory,
+offline product validator, permit checks, local event queue, and sync status UI.
+
+Both APKs contain the shared Branded barcode scanner and use it while online. Rural also uses it
+offline. Gemini is an online fallback only when barcode identification does not finish the match.
+Non-Branded Scan does not start the barcode path. The catalog decides eligibility in every path.
+
+The web layer may display local state and call a native merchant-edge adapter. It must not decide
+eligibility, balance, reservation amount, settlement, or cash-out status. The Rural build must not
+display a local pending amount as an official merchant balance.
+
+The current Android shell is in the linked `BANTAYOG-worktrees/merchant-apk` worktree. Its package
+and Capacitor configuration files are zero-byte placeholders. Its generated Android project uses
+Groovy `build.gradle`, namespace `ph.bantayog.merchant`, and a Java `MainActivity`. The Rural plan
+first restores a buildable baseline, then adds `urban` and `rural` Gradle product flavors.
+Rural-only Kotlin storage, Keystore, catalog, OCR, and synchronization classes must stay in the Rural
+source set so the Urban APK does not contain them. The shared barcode class stays in `src/main`.
+
+Urban development stays in `BANTAYOG-worktrees/merchant-apk`. After the reviewed shared baseline is
+committed, Task 0 creates `BANTAYOG-worktrees/merchant-apk-rural` for Rural development. Final
+signed Urban and Rural APKs must come from one clean approved integration revision.
+
+Rural checkout creates one sale ID and one local event before upload. It can fall back for network,
+DNS, timeout, 408, 429, or 5xx only when assignment, catalog, merchant certificate, permit, and
+beneficiary verifier are valid. It shows `Offline unavailable` for a missing prerequisite. It does
+not fall back for ineligible, invalid-image, authentication, signature, or configuration failures.
+
 ## UI conventions
 
 - `components/ui/index.tsx` holds the shared primitives (single barrel file); feature components

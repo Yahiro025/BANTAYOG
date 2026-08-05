@@ -7,6 +7,34 @@ Written in ASD-STE100 Simplified Technical English.
 **Status:** plan approved by the repository owner. No code is written yet.
 **Deadline context:** the WOCEE 2026 live showcase is August 8, 2026. See `docs/SHOWCASE.md`.
 
+**Scope note — 2026-08-04:** This handoff describes the original merchant APK packaging work.
+ADR-004 and `docs/superpowers/plans/2026-08-04-rural-offline-merchant-flow.md` add two APK
+variants and a Rural offline transaction feature. For that new work, the original statement that
+there is no database migration or schema change no longer applies. The new ADR and implementation
+plan control the Rural extension. Do not treat this historical handoff as approval to apply a
+migration, change `settle_sale`, change authentication or RLS, add native dependencies, or deploy.
+
+The generated Android shell currently exists in the linked worktree at
+`/home/yahiro/Documents/PROJECTS/BANTAYOG-worktrees/merchant-apk/apps/mobile`. It uses Groovy
+`build.gradle`, namespace `ph.bantayog.merchant`, and a Java `MainActivity`. The Rural plan adds
+Gradle Urban and Rural product flavors and Rural-only Kotlin classes after the native dependency
+gate. In the 2026-08-04 snapshot, `apps/mobile/package.json` and `capacitor.config.ts` are staged
+as zero-byte files. Preserve the staged files and complete the baseline only through Task 0 of the
+Rural plan.
+
+The finalized Rural plan also requires a shared Branded barcode scanner in Android `src/main`, so
+both Urban and Rural APKs can scan barcodes while online. Rural-only catalog, OCR, encrypted local
+data, permit, merchant certificate, trusted-time, event, retention, and synchronization classes
+stay in the Rural source set. Do not start these changes until Task 0 proves a valid baseline and
+the owner approves the exact native dependencies.
+
+Use `/home/yahiro/Documents/PROJECTS/BANTAYOG-worktrees/merchant-apk` on `feat/merchant-apk` for
+Urban development. After the owner approves and records a clean buildable shared baseline commit,
+Task 0 creates `/home/yahiro/Documents/PROJECTS/BANTAYOG-worktrees/merchant-apk-rural` on
+`codex/rural-merchant-apk` for Rural development. Do not create the Rural worktree from the current
+dirty `HEAD`, because it would omit the staged Android shell. The worktrees are development
+isolation only. Build the final signed Urban and Rural APKs from one approved integration revision.
+
 ---
 
 ## 1. Objective

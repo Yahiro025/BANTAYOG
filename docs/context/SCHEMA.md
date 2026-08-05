@@ -67,6 +67,85 @@ products, market_prices, outbox                (no foreign key)
   the hosted Supabase project already has that extension. Use `gen_random_uuid()` in a new table,
   as every other table does.
 
+## 2.1 Approved offline extension — planned, not migrated
+
+ADR-004 approves eight logical objects for the Rural merchant build. They do not exist in the
+current database. The implementation must add them in the next append-only migration and mirror
+them in `packages/db/src/types.ts` and `packages/db/src/types.test.ts`.
+
+### `merchant_devices`
+
+Stores the registered Rural device public key, merchant ownership, app variant, device status,
+key version, and registration timestamps. The private key never enters Postgres.
+
+### `beneficiary_merchant_assignments`
+
+Stores an administrator-approved relationship between one beneficiary and one Rural merchant. It
+contains the policy cap, validity period, status, approval actor, revocation actor, reason, and audit
+timestamps. The database permits at most seven active distinct Rural merchant assignments for one
+beneficiary. A device does not create another assignment.
+
+### `offline_merchant_certificates`
+
+Stores the signed device-bound local capability certificate, issue time, expiry, status, key ID,
+algorithm, and format version. Its expiry cannot be later than the permit. It cannot authorize
+sync, provisioning, reservation release, cash-out, or an administrator operation.
+
+### `offline_credit_reservations`
+
+Stores a server-issued credit quota bound to one assignment, beneficiary, merchant, and device. It must hold
+the maximum amount, remaining amount, server issue time, expiry, catalog version, policy version,
+nonce, signature, and lifecycle status. Database money uses `NUMERIC(12,2)` and offline credit
+amounts must have `.00`. Signed payment payloads and application code use whole integer credits.
+
+While the beneficiary row is locked, the server must enforce:
+
+```text
+credit_balance - sum(active reservation remaining amounts) >= new reservation amount
+active distinct Rural merchant IDs with remaining reservation > 0 <= 7
+```
+
+This is the cross-merchant double-spend control. The seventh distinct Rural merchant may receive a
+policy-approved permit, but an eighth distinct merchant must be rejected. Multiple devices for one
+merchant count as one merchant. A local Rural permit is not a balance replica. While the same
+beneficiary row is locked, the sum of active remaining reservations for one beneficiary and
+merchant plus the new reservation must not exceed that merchant's server policy cap.
+
+A permit lasts for at most 30 days. The server must receive an event before the signed expiry. A
+device timestamp cannot extend the permit. Expiry or release changes reservation state only. It
+must not increment `beneficiaries.credit_balance`.
+
+Manual release records the actor, reason, and server time. Reservation issuance must reject an
+absent, expired, revoked, or wrong-merchant assignment before it calculates available credit.
+
+### `offline_transaction_events`
+
+Stores the append-only signed event received from a Rural device, its unique sale ID, assignment ID,
+canonical payload digest, reservation ID, device ID, local sequence, product identification method,
+event amount, and immutable server decision. It provides the audit and idempotency record for local
+events. Local `PENDING_SYNC` is not a value for `transactions.status`.
+
+### `offline_sync_receipts`
+
+Stores one server acknowledgement per event, including `accepted`, `rejected`, or `conflict`, the
+official transaction ID when accepted, the reason when rejected, and the server cursor.
+
+For an accepted event, one reservation-aware database transaction must claim the event ID, consume
+the reservation, deduct the beneficiary, credit the merchant, insert the official transaction,
+store the final event decision, and insert the receipt. Online `settle_sale` must also exclude
+active offline reservations from spendable credit.
+
+### `offline_catalog_releases`
+
+Stores one immutable canonical product and commodity release, payload digest, catalog version,
+policy version, validity period, key ID, algorithm, signature, creator, and creation time. A reused
+version or later payload update is rejected.
+
+### `offline_conflict_reviews`
+
+Stores append-only administrator review actions for a conflicting event. It can link a separate
+remediation transaction. It cannot change the original event decision or directly edit a balance.
+
 ## 3. Tables
 
 ### beneficiaries
@@ -260,6 +339,11 @@ settle_sale(p_beneficiary_id UUID, p_merchant_id UUID, p_amount NUMERIC(12,2),
 
 Any raise rolls back every step. The row lock makes two concurrent checkouts safe. Never
 reproduce these steps in TypeScript.
+
+ADR-004 requires a reservation-aware extension before Rural synchronization is implemented. The
+online path must spend only unreserved credits. The offline path must lock the beneficiary and
+reservation, consume the reservation, deduct credit, credit the merchant, and insert one official
+transaction in the same database transaction. Do not move this logic into TypeScript.
 
 ### Other functions
 

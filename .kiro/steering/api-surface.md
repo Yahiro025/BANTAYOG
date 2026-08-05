@@ -26,6 +26,43 @@ sets `c.get('user')` to `{id, email, role}` or `null`. `requireRole` does the re
 | `/api/vision*` | merchant |
 | `/api/cron/*` | no session; `Authorization: Bearer $CRON_SECRET` checked inside the handler |
 
+## Approved Rural extension — planned routes
+
+These routes are approved by ADR-004 but are not implemented in the current checkout:
+
+- `GET /api/merchants/me/beneficiaries/search?q=<name>` — merchant-authorized live name search for
+  Urban no-card payments. Return masked identity fields only. Never return a PIN or beneficiary
+  balance.
+- `POST /api/offline/devices/register` — register a Rural device public key and app variant.
+- `POST /api/offline/provision` — return the assigned Rural directory, signed catalog release,
+  active device-bound reservations, offline merchant certificate, trusted time and key metadata,
+  and the separate offline PIN verifier package. The server
+  policy chooses reservation amounts; the merchant cannot request an arbitrary allowance. A permit
+  lasts for at most 30 days and all devices for one merchant share one aggregate cap.
+- `POST /api/offline/sync` — accept signed Rural events and return one `accepted`, `rejected`, or
+  `conflict` result per event. Accepted events return the official transaction ID. The server uses
+  receipt time for expiry. A current emergency revocation returns a conflict that needs review.
+- `POST /api/cron/offline-release-expired` — release expired reservation amounts through the
+  protected cron path.
+- `POST /api/offline/reservations/:id/release` — the owning merchant releases an unused reservation
+  with a fresh online session and audit reason. It never adds beneficiary credit.
+- `POST /api/admin/offline/assignments` — an administrator creates or revokes a beneficiary Rural
+  merchant assignment. The backend rejects an eighth active distinct merchant.
+- `POST /api/admin/offline/catalog-releases` — validate, canonicalize, sign, and store one immutable
+  catalog and commodity policy release.
+- `GET /api/admin/offline/conflicts` and `GET /api/admin/offline/conflicts/:eventId` — list and
+  inspect immutable conflicts.
+- `POST /api/admin/offline/conflicts/:eventId/close` — append a terminal close-rejected review. It
+  cannot change the original event or move money.
+
+The implementation must keep the server route → service → repository boundary. The Rural client
+must not upload a local database snapshot, and no route may add mutation under `/api/balance`.
+There are no current GCash, GoTyme, or bank-account payout routes. Those providers are future
+partnership work and need a later approved API and security design.
+
+QR pass version 2 uses ES256 and has no HMAC fallback. Authentication, transaction, balance,
+provisioning, and synchronization routes must check both pass expiry and revocation.
+
 ## Endpoints
 
 Auth (`routes/auth.ts`)
