@@ -24,106 +24,13 @@ const merchantLoginSchema = z.object({
   password: z.string().min(6)
 })
 
-const walletLoginSchema = z.object({
-  proof: z.object({
-    address: z.string(),
-    message: z.string().optional(),
-    signature: z.string().optional()
-  })
-})
-
 const verifyPinSchema = z.object({
   beneficiaryId: z.string().uuid(),
   pin: z.string().length(6)
 })
 
-import { WalletAdapterGateway } from '../services/wallet-adapter.gateway.js'
-const walletGateway = new WalletAdapterGateway()
-
-/**
- * POST /api/auth/wallet-login
- * Authenticates merchant via injected EVM wallet (EIP-1193) signature
- */
-authRoutes.post('/wallet-login', zValidator('json', walletLoginSchema), async (c) => {
-  const { proof } = c.req.valid('json')
-  const db = createServiceClient()
-
-  // 1. Verify the wallet connection
-  const verifiedResult = await walletGateway.verifyWalletConnection(proof)
-  if (verifiedResult.isErr()) {
-    return c.json(errorToResponseBody(verifiedResult.error), errorToHttpStatus(verifiedResult.error))
-  }
-  const verifiedAddress = verifiedResult.value
-
-  try {
-    // 2. Query merchant profile matching this wallet address
-    // Wallet addresses are stored case-insensitively/normally, let's query case-insensitively if needed
-    const { data: merchant, error: dbError } = await (db as any)
-      .from('merchants')
-      .select('*')
-      .eq('wallet_address', verifiedAddress)
-      .eq('status', 'APPROVED')
-      .maybeSingle()
-
-    if (dbError || !merchant) {
-      return c.json({ error: 'forbidden', message: 'Merchant wallet address not registered or not approved' }, 403)
-    }
-
-    // 3. Fetch the auth user profile to get the derived email
-    const { data: userData, error: userError } = await db.auth.admin.getUserById(merchant.auth_user_id)
-    if (userError || !userData?.user) {
-      return c.json({ error: 'forbidden', message: 'Auth user profile not found for merchant' }, 403)
-    }
-
-    const email = userData.user.email
-    if (!email) {
-      return c.json({ error: 'forbidden', message: 'Email address not found on auth profile' }, 403)
-    }
-
-    // 4. Generate direct sign-in link containing the OTP code
-    const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
-      type: 'magiclink',
-      email
-    })
-
-    if (linkError || !linkData) {
-      return c.json({ error: 'unauthorized', message: 'Failed to generate sign-in link' }, 401)
-    }
-
-    // 5. Exchange the generated OTP code for a valid user session
-    const { data: sessionData, error: sessionError } = await db.auth.verifyOtp({
-      email,
-      token: linkData.properties.email_otp,
-      type: 'magiclink'
-    })
-
-    if (sessionError || !sessionData?.session) {
-      return c.json({ error: 'unauthorized', message: 'Failed to establish auth session' }, 401)
-    }
-
-    return c.json({
-      user: {
-        id: userData.user.id,
-        email: userData.user.email,
-        role: 'merchant',
-        merchantId: merchant.id,
-        storeName: merchant.store_name
-      },
-      session: {
-        accessToken: sessionData.session.access_token,
-        expiresAt: sessionData.session.expires_at
-      }
-    })
-  } catch (err: any) {
-    return c.json({ error: 'unauthorized', message: err.message }, 401)
-  }
-})
-
-
-/**
- * POST /api/auth/login
- * Admin Login via Supabase Auth
- */
+// POST /api/auth/login
+// Admin Login via Supabase Auth
 authRoutes.post('/login', zValidator('json', loginSchema), async (c) => {
   const { email, password } = c.req.valid('json')
   const db = createServiceClient()
@@ -157,10 +64,8 @@ authRoutes.post('/login', zValidator('json', loginSchema), async (c) => {
   })
 })
 
-/**
- * POST /api/auth/merchant-login
- * Merchant Login via Supabase Auth (email derived from mobile number)
- */
+// POST /api/auth/merchant-login
+// Merchant Login via Supabase Auth (email derived from mobile number)
 authRoutes.post('/merchant-login', zValidator('json', merchantLoginSchema), async (c) => {
   const { mobileNumberE164, password } = c.req.valid('json')
   const db = createServiceClient()
@@ -217,10 +122,8 @@ const merchantRefreshSchema = z.object({
   refreshToken: z.string().min(1)
 })
 
-/**
- * POST /api/auth/merchant-refresh
- * Refresh merchant session using refresh token
- */
+// POST /api/auth/merchant-refresh
+// Refresh merchant session using refresh token
 authRoutes.post('/merchant-refresh', zValidator('json', merchantRefreshSchema), async (c) => {
   const { refreshToken } = c.req.valid('json')
   const db = createServiceClient()
@@ -242,10 +145,8 @@ authRoutes.post('/merchant-refresh', zValidator('json', merchantRefreshSchema), 
   })
 })
 
-/**
- * POST /api/auth/verify-pin
- * PIN verification endpoint during checkout
- */
+// POST /api/auth/verify-pin
+// PIN verification endpoint during checkout
 authRoutes.post('/verify-pin', zValidator('json', verifyPinSchema), async (c) => {
   const { beneficiaryId, pin } = c.req.valid('json')
   const db = createServiceClient()
@@ -278,10 +179,8 @@ const verifyQrSchema = z.object({
   token: z.string().min(1)
 })
 
-/**
- * POST /api/auth/verify-qr
- * Verifies the beneficiary QR code, performs live tier re-evaluation, and returns details.
- */
+// POST /api/auth/verify-qr
+// Verifies the beneficiary QR code, performs live tier re-evaluation, and returns details.
 authRoutes.post('/verify-qr', zValidator('json', verifyQrSchema), async (c) => {
   const { token } = c.req.valid('json')
   const qrTokenService = new QrTokenService()
@@ -327,10 +226,8 @@ authRoutes.post('/verify-qr', zValidator('json', verifyQrSchema), async (c) => {
   )
 })
 
-/**
- * POST /api/auth/logout
- * Signs out the current Supabase session.
- */
+// POST /api/auth/logout
+// Signs out the current Supabase session.
 authRoutes.post('/logout', authMiddleware, requireRole('admin', 'merchant'), async (c) => {
   const db = createServiceClient()
   const { error } = await db.auth.signOut({ scope: 'local' })

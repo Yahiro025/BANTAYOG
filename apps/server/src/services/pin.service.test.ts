@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest'
 import fc from 'fast-check'
 import { PinService } from './pin.service.js'
 
-// ---------------------------------------------------------------------------
 // Task 11.5 file-placement note: `PinService.verifyPinWithLockout` (the
 // Redis-backed consecutive-failure lockout logic, Requirement 7.5) is
 // entirely MOCKED-OUT in `routes/transactions.test.ts` (its
@@ -70,9 +69,8 @@ describe('PinService', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
 // Property 16: PIN hashing/verification round-trip
-// ---------------------------------------------------------------------------
+
 //
 // Scoping note: the full Property 16 statement (design.md) also mentions
 // the recorded balance staying unchanged. `PinService` has no concept of a
@@ -117,10 +115,8 @@ describe('Property 16: PIN hashing/verification round-trip', () => {
   }, 120000)
 })
 
-
-// ---------------------------------------------------------------------------
 // Property 17: PIN lockout after five consecutive failures
-// ---------------------------------------------------------------------------
+
 //
 // File-placement note (Task 11.5): the task was originally scoped to
 // `transactions.test.ts`, but `PinService.verifyPinWithLockout` is entirely

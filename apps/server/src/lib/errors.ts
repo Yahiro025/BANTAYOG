@@ -1,19 +1,13 @@
-/**
- * Error taxonomy with neverthrow Result types.
- *
- * Per BANTAYOG_PROJECT_PLAN.md §9 (F9 resolution):
- * - Every service returns Promise<AppResult<T>>
- * - Route handlers never throw
- * - Result.match at the HTTP boundary maps each error type to a stable HTTP code
- *
- * BE1 owns this file; review by all.
- */
+// Error taxonomy with neverthrow Result types.
+// Per BANTAYOG_PROJECT_PLAN.md §9 (F9 resolution):
+// - Every service returns Promise<AppResult<T>>
+// - Route handlers never throw
+// - Result.match at the HTTP boundary maps each error type to a stable HTTP code
+// BE1 owns this file; review by all.
 import { Result, ok, err } from 'neverthrow'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 
-// ---------------------------------------------------------------------------
 // Error classes (7 typed errors)
-// ---------------------------------------------------------------------------
 
 export class ValidationError {
   readonly _tag = 'validation' as const
@@ -72,9 +66,7 @@ export class PolicyError {
   ) {}
 }
 
-// ---------------------------------------------------------------------------
 // Union type
-// ---------------------------------------------------------------------------
 
 export type AppError =
   | ValidationError
@@ -87,20 +79,14 @@ export type AppError =
 
 export type AppResult<T> = Result<T, AppError>
 
-// ---------------------------------------------------------------------------
 // Re-export neverthrow helpers for convenience
-// ---------------------------------------------------------------------------
 
 export { ok, err }
 
-// ---------------------------------------------------------------------------
 // HTTP status mapping
-// ---------------------------------------------------------------------------
 
-/**
- * Maps an AppError to its stable HTTP status code.
- * Used at the HTTP boundary in route handlers.
- */
+// Maps an AppError to its stable HTTP status code.
+// Used at the HTTP boundary in route handlers.
 export function errorToHttpStatus(error: AppError): ContentfulStatusCode {
   switch (error._tag) {
     case 'validation':
@@ -122,10 +108,8 @@ export function errorToHttpStatus(error: AppError): ContentfulStatusCode {
   }
 }
 
-/**
- * Maps an AppError to a user-visible JSON response body.
- * Never leaks internal stack traces or PII.
- */
+// Maps an AppError to a user-visible JSON response body.
+// Never leaks internal stack traces or PII.
 export function errorToResponseBody(error: AppError): {
   error: string
   message: string

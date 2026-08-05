@@ -1,380 +1,374 @@
-/**
- * BlockchainClient — Polygon Amoy (chain ID 80002) read/write client.
- *
- * Per the polygon-amoy-phpc-migration design (Components and Interfaces §2)
- * and Migration Strategy step 2: this replaces the old Ronin Saigon /
- * local-Hardhat `ChainClient`. Every failure path returns a typed
- * `Err(OnchainError)` — there is NO "return mock on failure" fallback. A 30
- * second bound is enforced on connection/read/write via viem's `http`
- * transport `timeout` option, and on `waitForTransactionReceipt` via its own
- * `timeout` parameter.
- *
- * Requirements: 1.2, 1.3, 1.5, 1.6, 1.7, 1.8
- */
+// StellarClient — Stellar Horizon read/write client for PHPC operations.
+// Every failure path returns a typed `Err(OnchainError)` — there is NO
+// "return mock on failure" fallback. Intent-shaped methods (F2): callers
+// express what they want, not which Stellar operation to run.
 import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  defineChain,
-  keccak256,
-  toBytes,
-  type Account,
-  type Hex,
-  type TransactionReceipt,
-} from 'viem'
-import { privateKeyToAccount } from 'viem/accounts'
-import { type ChainConfig, POLYGON_AMOY_CHAIN_ID } from '../lib/chain/config.js'
+  Asset,
+  BASE_FEE,
+  Horizon,
+  Keypair,
+  Operation,
+  TransactionBuilder,
+} from '@stellar/stellar-sdk'
+import type { ChainConfig } from '../lib/chain/config.js'
 import { type AppResult, OnchainError, ok, err } from '../lib/errors.js'
 
-/** Bound (ms) enforced on connection setup, reads, writes, and confirmation waits. */
-const OPERATION_TIMEOUT_MS = 30_000
+// Timeout for Stellar transaction submission (seconds).
+const TRANSACTION_TIMEOUT_SECONDS = 180
 
-const NETWORK_NAME = 'Polygon Amoy'
+// 1 PHPC = 10,000,000 stroops (7 decimal places).
+const STROOPS_PER_ASSET = 10_000_000n
 
-export const PHPC_ABI = [
-  {
-    inputs: [{ name: 'account', type: 'address' }],
-    name: 'balanceOf',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [
-      { name: 'to', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-    ],
-    name: 'transfer',
-    outputs: [{ name: '', type: 'bool' }],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  }
-] as const
+// Tier-to-amount mapping: tier 1 = 5000 PHPC, tier 2 = 3500 PHPC.
+const TIER_AMOUNTS: Record<1 | 2, number> = { 1: 5000, 2: 3500 }
 
-export const PHPC_SUBSIDY_ABI = [
-  {
-    inputs: [
-      { name: 'beneficiaryId', type: 'bytes32' },
-      { name: 'amount', type: 'uint256' }
-    ],
-    name: 'allocateCredits',
-    outputs: [],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  },
-  {
-    inputs: [
-      { name: 'beneficiaryId', type: 'bytes32' },
-      { name: 'merchantAddress', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-      { name: 'transactionId', type: 'bytes32' }
-    ],
-    name: 'processTransaction',
-    outputs: [],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  },
-  {
-    inputs: [{ name: 'beneficiaryId', type: 'bytes32' }],
-    name: 'getBalance',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  }
-] as const
+type HorizonServer = InstanceType<typeof Horizon.Server>
 
-/** A generic transaction request accepted by {@link BlockchainClient.signAndSend}. */
-export interface TxRequest {
-  to: `0x${string}`
-  data?: Hex
-  value?: bigint
+// Parses a Stellar balance string (up to 7 decimal places) into exact
+// bigint stroops with no floating-point intermediate.
+function balanceToStroops(balance: string): bigint {
+  const [whole, fraction = ''] = balance.split('.')
+  const padded = fraction.padEnd(7, '0').slice(0, 7)
+  return BigInt(whole) * STROOPS_PER_ASSET + BigInt(padded)
 }
 
-type AmoyPublicClient = ReturnType<typeof createPublicClient>
-type AmoyWalletClient = ReturnType<typeof createWalletClient>
-type AmoyChain = ReturnType<typeof defineChain>
-
-/** Extracts a numeric error code from an unknown thrown value, defaulting to 0. */
-function toErrorCode(e: unknown): number {
-  const code = (e as { code?: unknown } | null | undefined)?.code
-  return typeof code === 'number' ? code : 0
+// Converts bigint stroops back to a decimal string with 7 decimal places.
+// Exported for callers that read a raw stroops balance (e.g.
+// `getAssetBalance`) and need to render it without floating-point loss.
+export function stroopsToDecimal(stroops: bigint): string {
+  const whole = stroops / STROOPS_PER_ASSET
+  const fraction = (stroops % STROOPS_PER_ASSET).toString().padStart(7, '0')
+  return `${whole}.${fraction}`
 }
 
-export class BlockchainClient {
+export class StellarClient {
   private constructor(
     private readonly config: ChainConfig,
-    private readonly chain: AmoyChain,
-    private readonly publicClient: AmoyPublicClient,
-    private readonly walletClient: AmoyWalletClient | undefined,
+    private readonly server: HorizonServer,
+    private readonly asset: Asset,
   ) {}
 
-  /**
-   * Builds a Polygon Amoy `viem` chain from `config.rpcUrl` and verifies the
-   * connected network actually reports chain ID 80002 before constructing a
-   * usable client. On a mismatch, or on any transport failure during the
-   * check, no client is constructed — this method returns an error instead.
-   *
-   * Requirements: 1.2, 1.3, 1.5, 1.7, 1.8
-   */
-  static async create(config: ChainConfig): Promise<AppResult<BlockchainClient>> {
-    const chain = defineChain({
-      id: POLYGON_AMOY_CHAIN_ID,
-      name: NETWORK_NAME,
-      nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
-      rpcUrls: { default: { http: [config.rpcUrl] } },
-    })
+  // Constructs a Stellar Horizon client and verifies connectivity by loading
+// the distribution account. On failure returns an error rather than throwing.
+  static async create(config: ChainConfig): Promise<AppResult<StellarClient>> {
+    const server = new Horizon.Server(config.horizonUrl)
+    const asset = new Asset(config.assetCode, config.issuerPublicKey)
 
-    const publicClient = createPublicClient({
-      chain,
-      transport: http(config.rpcUrl, { timeout: OPERATION_TIMEOUT_MS }),
-    })
-
-    let reportedChainId: number
     try {
-      reportedChainId = await publicClient.getChainId()
+      const distPubKey = Keypair.fromSecret(config.distributionSecret).publicKey()
+      await server.loadAccount(distPubKey)
     } catch {
-      return err(new OnchainError(`Failed to connect to ${NETWORK_NAME}`, 0))
+      return err(new OnchainError('Failed to connect to Stellar Horizon', 0))
     }
 
-    if (reportedChainId !== POLYGON_AMOY_CHAIN_ID) {
+    return ok(new StellarClient(config, server, asset))
+  }
+
+  // Reads the PHPC balance for an account, returned as exact bigint stroops.
+// Returns ok(0n) if the account has no trustline for the asset.
+// Returns err if the account itself does not exist on Horizon.
+  async getAssetBalance(accountId: string): Promise<AppResult<bigint>> {
+    try {
+      const account = await this.server.loadAccount(accountId)
+      const entry = account.balances.find(
+        (b: any) =>
+          'asset_code' in b &&
+          b.asset_code === this.config.assetCode &&
+          b.asset_issuer === this.config.issuerPublicKey,
+      )
+      if (!entry) return ok(0n)
+      return ok(balanceToStroops((entry as any).balance))
+    } catch {
+      return err(new OnchainError('getAssetBalance failed on Stellar', 0))
+    }
+  }
+
+  // Checks whether an account has an authorized trustline for the PHPC asset.
+// Returns ok(false) if trustline doesn't exist or isn't authorized.
+// Returns err only on connectivity/account-not-found failure.
+  async hasAuthorizedTrustline(accountId: string): Promise<AppResult<boolean>> {
+    try {
+      const account = await this.server.loadAccount(accountId)
+      const entry = account.balances.find(
+        (b: any) =>
+          'asset_code' in b &&
+          b.asset_code === this.config.assetCode &&
+          b.asset_issuer === this.config.issuerPublicKey,
+      )
+      if (!entry) return ok(false)
+      return ok((entry as any).is_authorized === true)
+    } catch {
+      return err(new OnchainError('hasAuthorizedTrustline failed on Stellar', 0))
+    }
+  }
+
+  // Allocates a tier-based PHPC subsidy to a beneficiary account.
+// Tier 1 = 5000 PHPC, Tier 2 = 3500 PHPC.
+// Payment comes from the distribution account.
+  async allocateSubsidy(
+    beneficiaryId: string,
+    beneficiaryAccountId: string,
+    tier: 1 | 2,
+  ): Promise<AppResult<{ hash: string; ledger: number }>> {
+    const amount = String(TIER_AMOUNTS[tier])
+    try {
+      const distKeypair = Keypair.fromSecret(this.config.distributionSecret)
+      const sourceAccount = await this.server.loadAccount(distKeypair.publicKey())
+
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: BASE_FEE,
+        networkPassphrase: this.config.networkPassphrase,
+      })
+        .addOperation(
+          Operation.payment({
+            destination: beneficiaryAccountId,
+            asset: this.asset,
+            amount,
+          }),
+        )
+        .setTimeout(TRANSACTION_TIMEOUT_SECONDS)
+        .build()
+
+      tx.sign(distKeypair)
+
+      const response = await this.server.submitTransaction(tx)
+      return ok({ hash: response.hash, ledger: response.ledger })
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
       return err(
         new OnchainError(
-          `Chain ID mismatch: expected ${POLYGON_AMOY_CHAIN_ID}, got ${reportedChainId}`,
-          reportedChainId,
+          `allocateSubsidy failed on Stellar for beneficiary ${beneficiaryId}: ${msg}`,
+          0,
         ),
       )
     }
-
-    let walletClient: AmoyWalletClient | undefined
-    if (config.deployerKey) {
-      const account = privateKeyToAccount(config.deployerKey)
-      walletClient = createWalletClient({
-        account,
-        chain,
-        transport: http(config.rpcUrl, { timeout: OPERATION_TIMEOUT_MS }),
-      })
-    }
-
-    return ok(new BlockchainClient(config, chain, publicClient, walletClient))
   }
 
-  /** Hashes a UUID string to a bytes32 identifier for Solidity contract calls. */
-  private hashUuid(uuid: string): Hex {
-    return keccak256(toBytes(uuid))
-  }
-
-  /**
-   * Public accessor for the internal `viem` public client, for callers that
-   * need direct read access (e.g. `getBlockNumber`/`getLogs` polling in the
-   * on-chain event listener) beyond this class's own typed methods.
-   *
-   * Requirements: 1.6, 2.4, 2.5
-   */
-  getPublicClientRef(): AmoyPublicClient {
-    return this.publicClient
-  }
-
-  /** Returns the configured `PHPCSubsidy` contract address. */
-  getSubsidyContractAddress(): `0x${string}` {
-    return this.config.phpcSubsidyAddress
-  }
-
-  /**
-   * Public rename of {@link hashUuid}: hashes a beneficiary id string to the
-   * bytes32 identifier used to correlate on-chain events with database rows.
-   */
-  hashBeneficiaryId(id: string): Hex {
-    return this.hashUuid(id)
-  }
-
-  /**
-   * Reads `PHPC.balanceOf(lguAdminWallet)`. No mock fallback on failure.
-   *
-   * Requirements: 1.6
-   */
-  async getTreasuryBalance(): Promise<AppResult<bigint>> {
+  // Settles a purchase: pays PHPC from beneficiary to merchant.
+// The sponsor covers the transaction fee via a fee-bump transaction.
+  async settlePurchase(input: {
+    beneficiaryAccountId: string
+    beneficiarySecret: string
+    merchantAccountId: string
+    amountStroops: bigint
+  }): Promise<AppResult<{ hash: string; ledger: number }>> {
+    const amountDecimal = stroopsToDecimal(input.amountStroops)
     try {
-      const balance = await this.publicClient.readContract({
-        address: this.config.phpcTokenAddress,
-        abi: PHPC_ABI,
-        functionName: 'balanceOf',
-        args: [this.config.lguAdminWallet],
+      const beneficiaryKeypair = Keypair.fromSecret(input.beneficiarySecret)
+      const sourceAccount = await this.server.loadAccount(input.beneficiaryAccountId)
+
+      const innerTx = new TransactionBuilder(sourceAccount, {
+        fee: BASE_FEE,
+        networkPassphrase: this.config.networkPassphrase,
       })
-      return ok(balance)
-    } catch (e) {
-      return err(new OnchainError(`getTreasuryBalance failed on ${NETWORK_NAME}`, toErrorCode(e)))
+        .addOperation(
+          Operation.payment({
+            destination: input.merchantAccountId,
+            asset: this.asset,
+            amount: amountDecimal,
+          }),
+        )
+        .setTimeout(TRANSACTION_TIMEOUT_SECONDS)
+        .build()
+
+      innerTx.sign(beneficiaryKeypair)
+
+      const sponsorKeypair = Keypair.fromSecret(this.config.sponsorSecret)
+      const feeBumpTx = TransactionBuilder.buildFeeBumpTransaction(
+        sponsorKeypair,
+        BASE_FEE,
+        innerTx,
+        this.config.networkPassphrase,
+      )
+      feeBumpTx.sign(sponsorKeypair)
+
+      const response = await this.server.submitTransaction(feeBumpTx)
+      return ok({ hash: response.hash, ledger: response.ledger })
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      return err(new OnchainError(`settlePurchase failed on Stellar: ${msg}`, 0))
     }
   }
 
-  /**
-   * Reads `PHPC.balanceOf(address)`. No mock fallback on failure.
-   *
-   * Requirements: 1.6
-   */
-  async getBalance(address: string): Promise<AppResult<bigint>> {
+  // Settles multiple purchases in a single transaction.
+// The sponsor acts as the transaction source (paying the fee and sequence number).
+// Each beneficiary signs the transaction for their specific payment operation.
+  async settlePurchasesBatch(
+    purchases: {
+      beneficiaryAccountId: string
+      merchantAccountId: string
+      amountStroops: bigint
+      beneficiarySigner: (tx: any) => Promise<void>
+    }[]
+  ): Promise<AppResult<{ hash: string; ledger: number }>> {
+    if (purchases.length === 0) return err(new OnchainError('Empty batch', 0))
+    
     try {
-      const balance = await this.publicClient.readContract({
-        address: this.config.phpcTokenAddress,
-        abi: PHPC_ABI,
-        functionName: 'balanceOf',
-        args: [address as `0x${string}`],
+      const sponsorKeypair = Keypair.fromSecret(this.config.sponsorSecret)
+      const sponsorAccount = await this.server.loadAccount(sponsorKeypair.publicKey())
+
+      const txBuilder = new TransactionBuilder(sponsorAccount, {
+        fee: (Number(BASE_FEE) * purchases.length).toString(),
+        networkPassphrase: this.config.networkPassphrase,
       })
-      return ok(balance)
-    } catch (e) {
-      return err(new OnchainError(`getBalance failed on ${NETWORK_NAME}`, toErrorCode(e)))
-    }
-  }
 
-  /**
-   * Calls `PHPCSubsidy.allocateCredits(keccak256(beneficiaryId), amountWei)`.
-   * Requires a wallet client (deployer key configured). No mock fallback on
-   * failure.
-   *
-   * Requirements: 1.3, 1.6
-   */
-  async allocateCredits(beneficiaryId: string, amountWei: bigint): Promise<AppResult<Hex>> {
-    if (!this.walletClient || !this.walletClient.account) {
-      return err(new OnchainError('Wallet client not initialized: missing deployer key', 0))
-    }
-    try {
-      // Get the current nonce to avoid RPC lag issues
-      const nonce = await this.publicClient.getTransactionCount({ 
-        address: this.walletClient.account.address 
-      });
-
-      console.log(`[allocateCredits] Initiating transfer for ${beneficiaryId} with nonce ${nonce}`);
-
-      // 1. Transfer the required amount of PHPC from the LGU treasury to the Subsidy contract
-      const transferHash = await this.walletClient.writeContract({
-        address: this.config.phpcTokenAddress,
-        abi: PHPC_ABI,
-        functionName: 'transfer',
-        args: [this.config.phpcSubsidyAddress, amountWei],
-        account: this.walletClient.account,
-        chain: this.chain,
-        nonce: nonce,
-        gas: 100000n, // Skip simulation
-      }).catch(e => {
-         console.error("TRANSFER ERROR:", e);
-         throw e;
-      });
-      
-      console.log(`[allocateCredits] Transfer broadcast: ${transferHash}, awaiting receipt...`);
-
-      // Wait for the transfer to be confirmed before allocating
-      const receipt = await this.publicClient.waitForTransactionReceipt({ 
-        hash: transferHash, 
-        timeout: OPERATION_TIMEOUT_MS 
-      }).catch(e => {
-         console.error("RECEIPT ERROR:", e);
-         throw e;
-      });
-
-      if (receipt.status !== 'success') {
-         console.error("TRANSFER REVERTED:", receipt);
-         throw new Error("Transfer reverted on-chain");
+      for (const p of purchases) {
+        txBuilder.addOperation(
+          Operation.payment({
+            source: p.beneficiaryAccountId,
+            destination: p.merchantAccountId,
+            asset: this.asset,
+            amount: stroopsToDecimal(p.amountStroops),
+          })
+        )
       }
 
-      console.log(`[allocateCredits] Transfer confirmed. Allocating credits with nonce ${nonce + 1}`);
+      const tx = txBuilder.setTimeout(TRANSACTION_TIMEOUT_SECONDS).build()
+      
+      for (const p of purchases) {
+        await p.beneficiarySigner(tx)
+      }
 
-      // 2. Allocate the credits in the Subsidy contract
-      const idHash = this.hashUuid(beneficiaryId)
-      const hash = await this.walletClient.writeContract({
-        address: this.config.phpcSubsidyAddress,
-        abi: PHPC_SUBSIDY_ABI,
-        functionName: 'allocateCredits',
-        args: [idHash, amountWei],
-        account: this.walletClient.account,
-        chain: this.chain,
-        nonce: nonce + 1,
-        gas: 150000n, // Skip simulation
-      }).catch(e => {
-         console.error("ALLOCATE ERROR:", e);
-         throw e;
-      });
+      tx.sign(sponsorKeypair)
 
-      console.log(`[allocateCredits] Allocation broadcast: ${hash}`);
-
-      return ok(hash)
-    } catch (e: any) {
-      console.error("CAUGHT ONCHAIN ERROR:", e);
-      return err(new OnchainError(`allocateCredits failed on ${NETWORK_NAME}: ${e.message || 'Unknown Error'}`, toErrorCode(e)))
+      const response = await this.server.submitTransaction(tx)
+      return ok({ hash: response.hash, ledger: response.ledger })
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      return err(new OnchainError(`settlePurchasesBatch failed: ${msg}`, 0))
     }
   }
 
-  /**
-   * Calls `PHPC.transfer(to, amountWei)`. Requires a wallet client (deployer
-   * key configured). No mock fallback on failure.
-   *
-   * Requirements: 1.3, 1.6
-   */
-  async transferPHPC(to: string, amountWei: bigint): Promise<AppResult<Hex>> {
-    if (!this.walletClient || !this.walletClient.account) {
-      return err(new OnchainError('Wallet client not initialized: missing deployer key', 0))
-    }
+  // Returns the latest ledger sequence number from Horizon.
+// Used for forward-compatibility item F7.
+  async getLedgerSequence(): Promise<AppResult<number>> {
     try {
-      const hash = await this.walletClient.writeContract({
-        address: this.config.phpcTokenAddress,
-        abi: PHPC_ABI,
-        functionName: 'transfer',
-        args: [to as `0x${string}`, amountWei],
-        account: this.walletClient.account,
-        chain: this.chain,
-      })
-      return ok(hash)
-    } catch (e) {
-      return err(new OnchainError(`transferPHPC failed on ${NETWORK_NAME}`, toErrorCode(e)))
+      const page = await this.server.ledgers().order('desc').limit(1).call()
+      const record = page.records[0]
+      return ok(record.sequence)
+    } catch {
+      return err(new OnchainError('getLedgerSequence failed on Stellar', 0))
     }
   }
 
-  /**
-   * Generic passthrough for custodial signing: sends `tx` using a wallet
-   * client constructed for the given `account`, bound to this instance's
-   * chain/transport (30s timeout). No mock fallback on failure.
-   *
-   * Requirements: 1.6
-   */
-  async signAndSend(account: Account, tx: TxRequest): Promise<AppResult<Hex>> {
+  // Provisions a Stellar account for a newly generated custodial keypair:
+// sponsored account creation, PHPC trustline, and issuer authorization.
+// Idempotent by construction (per Phase 3 / risk R2): each of the three
+// steps checks current on-chain state before submitting, so calling this
+// on an already-provisioned account submits nothing and returns ok. This
+// mirrors the exact sequence `scripts/bootstrap-stellar.ts` and
+// `scripts/provision-stellar-accounts.ts` already use for the treasury
+// accounts and for re-provisioning after a testnet reset, but runs inline
+// at registration/approval time so a beneficiary or merchant is usable
+// on-chain immediately rather than only after a separate manual script run.
+// `accountSecret` is the newly generated account's own secret seed — it
+// is required to co-sign account creation (for
+// `endSponsoringFutureReserves`) and to sign its own `changeTrust`
+// operation. It is never persisted by this method; the caller is
+// responsible for zeroizing/discarding it after this call returns.
+  async provisionAccount(input: {
+    accountId: string
+    accountSecret: string
+  }): Promise<AppResult<void>> {
+    const accountKeypair = Keypair.fromSecret(input.accountSecret)
+    const trustlineLimit = '50000' // Comfortably exceeds Tier 1 grant of 5,000
+
     try {
-      const client = createWalletClient({
-        account,
-        chain: this.chain,
-        transport: http(this.config.rpcUrl, { timeout: OPERATION_TIMEOUT_MS }),
-      })
-      const hash = await client.sendTransaction({
-        account,
-        chain: this.chain,
-        to: tx.to,
-        data: tx.data,
-        value: tx.value,
-      })
-      return ok(hash)
-    } catch (e) {
-      return err(new OnchainError(`signAndSend failed on ${NETWORK_NAME}`, toErrorCode(e)))
+      // Step 1: create the account (sponsored by the LGU sponsor) if it does
+      // not already exist on Horizon.
+      let accountExists = true
+      try {
+        await this.server.loadAccount(input.accountId)
+      } catch {
+        accountExists = false
+      }
+
+      const sponsorKeypair = Keypair.fromSecret(this.config.sponsorSecret)
+
+      if (!accountExists) {
+        const sponsorAccount = await this.server.loadAccount(sponsorKeypair.publicKey())
+        const createTx = new TransactionBuilder(sponsorAccount, {
+          fee: BASE_FEE,
+          networkPassphrase: this.config.networkPassphrase,
+        })
+          .addOperation(
+            Operation.beginSponsoringFutureReserves({ sponsoredId: input.accountId }),
+          )
+          .addOperation(
+            Operation.createAccount({ destination: input.accountId, startingBalance: '0' }),
+          )
+          .addOperation(Operation.endSponsoringFutureReserves({ source: input.accountId }))
+          .setTimeout(TRANSACTION_TIMEOUT_SECONDS)
+          .build()
+
+        createTx.sign(sponsorKeypair)
+        createTx.sign(accountKeypair)
+        await this.server.submitTransaction(createTx)
+      }
+
+      // Step 2: create the PHPC trustline (sponsored) if it does not already
+      // exist, and step 3: authorize it if not already authorized. Both are
+      // re-checked against current on-chain state for idempotency.
+      const account = await this.server.loadAccount(input.accountId)
+      const trustlineEntry = account.balances.find(
+        (b: any) =>
+          'asset_code' in b &&
+          b.asset_code === this.config.assetCode &&
+          b.asset_issuer === this.config.issuerPublicKey,
+      ) as any
+
+      if (!trustlineEntry) {
+        const sponsorAccount2 = await this.server.loadAccount(sponsorKeypair.publicKey())
+        const trustTx = new TransactionBuilder(sponsorAccount2, {
+          fee: BASE_FEE,
+          networkPassphrase: this.config.networkPassphrase,
+        })
+          .addOperation(
+            Operation.beginSponsoringFutureReserves({ sponsoredId: input.accountId }),
+          )
+          .addOperation(
+            Operation.changeTrust({
+              asset: this.asset,
+              limit: trustlineLimit,
+              source: input.accountId,
+            }),
+          )
+          .addOperation(Operation.endSponsoringFutureReserves({ source: input.accountId }))
+          .setTimeout(TRANSACTION_TIMEOUT_SECONDS)
+          .build()
+
+        trustTx.sign(sponsorKeypair)
+        trustTx.sign(accountKeypair)
+        await this.server.submitTransaction(trustTx)
+      }
+
+      const isAuthorized = trustlineEntry?.is_authorized === true
+      if (!isAuthorized) {
+        const issuerKeypair = Keypair.fromSecret(this.config.issuerSecret)
+        const issuerAccount = await this.server.loadAccount(issuerKeypair.publicKey())
+        const authTx = new TransactionBuilder(issuerAccount, {
+          fee: BASE_FEE,
+          networkPassphrase: this.config.networkPassphrase,
+        })
+          .addOperation(
+            Operation.setTrustLineFlags({
+              trustor: input.accountId,
+              asset: this.asset,
+              flags: { authorized: true },
+            }),
+          )
+          .setTimeout(TRANSACTION_TIMEOUT_SECONDS)
+          .build()
+
+        authTx.sign(issuerKeypair)
+        await this.server.submitTransaction(authTx)
+      }
+
+      return ok(undefined)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      return err(new OnchainError(`provisionAccount failed on Stellar: ${msg}`, 0))
     }
   }
 
-  /**
-   * Waits for a transaction receipt, bounded by `timeoutMs` (default 30s).
-   * No fake receipt fallback on timeout/failure.
-   *
-   * Requirements: 1.6
-   */
-  async waitForConfirmation(
-    hash: Hex,
-    timeoutMs: number = OPERATION_TIMEOUT_MS,
-  ): Promise<AppResult<TransactionReceipt>> {
-    try {
-      const receipt = await this.publicClient.waitForTransactionReceipt({ hash, timeout: timeoutMs })
-      return ok(receipt)
-    } catch (e) {
-      return err(
-        new OnchainError(
-          `Transaction confirmation failed or timed out on ${NETWORK_NAME}`,
-          toErrorCode(e),
-          hash,
-        ),
-      )
-    }
-  }
 }

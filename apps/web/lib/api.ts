@@ -6,22 +6,18 @@ const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key",
 );
 
-/**
- * A wrapper around the native fetch API that automatically retrieves the
- * current Supabase auth session token and attaches it to the request's
- * Authorization header as a Bearer token.
- *
- * Priority order:
- *   1. Merchant localStorage token (set on merchant-login), checked for expiry
- *   2. Supabase browser session (set on admin login via Supabase Auth UI)
- *
- * The merchant token always wins over the Supabase session to prevent
- * admin sessions from leaking into merchant-only endpoints (e.g. /api/vision).
- */
+// A wrapper around the native fetch API that automatically retrieves the
+// current Supabase auth session token and attaches it to the request's
+// Authorization header as a Bearer token.
+// Priority order:
+// 1. Merchant localStorage token (set on merchant-login), checked for expiry
+// 2. Supabase browser session (set on admin login via Supabase Auth UI)
+// The merchant token always wins over the Supabase session to prevent
+// admin sessions from leaking into merchant-only endpoints (e.g. /api/vision).
 export const MERCHANT_TOKEN_KEY = "bantayog_merchant_access_token";
 export const MERCHANT_REFRESH_TOKEN_KEY = "bantayog_merchant_refresh_token";
 
-/** Returns true if the stored merchant token has expired. */
+// Returns true if the stored merchant token has expired.
 function isMerchantTokenExpired(): boolean {
   if (typeof window === "undefined") return false;
   const expiresAt = window.localStorage.getItem(MERCHANT_TOKEN_KEY + "_expires");
@@ -30,7 +26,7 @@ function isMerchantTokenExpired(): boolean {
   return Date.now() / 1000 > Number(expiresAt) - 30; // 30s buffer
 }
 
-/** Clears the stored merchant token (call on logout or expiry). */
+// Clears the stored merchant token (call on logout or expiry).
 export function clearMerchantToken(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(MERCHANT_TOKEN_KEY);

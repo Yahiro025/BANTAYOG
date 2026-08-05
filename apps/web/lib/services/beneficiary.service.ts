@@ -1,14 +1,11 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-vars */
+// eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-vars
 // @ts-nocheck
 // ponytail: dead code kept for tests — server owns canonical impl
-/**
- * Beneficiary Service
- *
- * CRUD operations on the beneficiaries table.
- * - register: computes tier, hashes PIN, inserts record, generates QR token
- * - list: returns all beneficiaries with dynamically re-evaluated tiers
- * - addCredits: updates Supabase balance + calls PHPCSubsidy.allocateCredits on-chain
- */
+// Beneficiary Service
+// CRUD operations on the beneficiaries table.
+// - register: computes tier, hashes PIN, inserts record, generates QR token
+// - list: returns all beneficiaries with dynamically re-evaluated tiers
+// - addCredits: updates Supabase balance + calls PHPCSubsidy.allocateCredits on-chain
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@bantayog/db";
@@ -25,25 +22,21 @@ import { getPublicClient, getWalletClient, getHardhatChain } from "@/lib/chain/c
 import { phpcSubsidyAddress, PHPC_SUBSIDY_ABI } from "@/lib/chain/contracts";
 import { keccak256, toHex } from "viem";
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
-/** Generate a card serial like BTG-2026-001 */
+// Generate a card serial like BTG-2026-001
 function generateCardSerial(): string {
   const year = new Date().getFullYear();
   const random = String(Math.floor(Math.random() * 900) + 100);
   return `BTG-${year}-${random}`;
 }
 
-/** Convert beneficiary ID (UUID) to bytes32 for on-chain calls. */
+// Convert beneficiary ID (UUID) to bytes32 for on-chain calls.
 function beneficiaryIdToBytes32(id: string): `0x${string}` {
   return keccak256(toHex(id));
 }
 
-// ---------------------------------------------------------------------------
 // Register
-// ---------------------------------------------------------------------------
 
 export interface RegisterBeneficiaryResult {
   beneficiary: Database["public"]["Tables"]["beneficiaries"]["Row"];
@@ -129,9 +122,7 @@ export async function registerBeneficiary(
   };
 }
 
-// ---------------------------------------------------------------------------
 // List
-// ---------------------------------------------------------------------------
 
 export interface BeneficiaryListItem {
   id: string;
@@ -181,9 +172,7 @@ export async function listBeneficiaries(
   });
 }
 
-// ---------------------------------------------------------------------------
 // Add Credits
-// ---------------------------------------------------------------------------
 
 export interface AddCreditsResult {
   beneficiaryId: string;
@@ -270,9 +259,7 @@ export async function addCredits(
   };
 }
 
-// ---------------------------------------------------------------------------
 // Metrics
-// ---------------------------------------------------------------------------
 
 export interface BeneficiaryMetrics {
   totalBeneficiaries: number;
@@ -333,9 +320,7 @@ export async function getBeneficiaryMetrics(
   };
 }
 
-// ---------------------------------------------------------------------------
 // PIN Verify
-// ---------------------------------------------------------------------------
 
 export async function verifyBeneficiaryPin(
   db: any,

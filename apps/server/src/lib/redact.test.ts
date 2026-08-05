@@ -2,17 +2,13 @@ import { describe, it, expect } from 'vitest'
 import fc from 'fast-check'
 import { redactSecrets, collectConfiguredSecrets } from './redact'
 
-// ---------------------------------------------------------------------------
 // Arbitraries
-// ---------------------------------------------------------------------------
 
-/**
- * Four distinct, non-empty secret strings, none of which is a substring of
- * another. Filtering out substring relationships keeps the test's failure
- * modes easy to reason about: each `not.toContain` assertion below targets
- * exactly one secret's own literal text, not a side effect of another
- * secret's redaction also removing it.
- */
+// Four distinct, non-empty secret strings, none of which is a substring of
+// another. Filtering out substring relationships keeps the test's failure
+// modes easy to reason about: each `not.toContain` assertion below targets
+// exactly one secret's own literal text, not a side effect of another
+// secret's redaction also removing it.
 const secretsArb = fc
   .tuple(
     fc.string({ minLength: 8, maxLength: 40 }).filter((s) => s.trim().length > 0),
@@ -25,7 +21,7 @@ const secretsArb = fc
     return all.every((s, i) => all.every((other, j) => i === j || !other.includes(s)))
   })
 
-/** Builds a nested structure embedding the four secrets at various positions. */
+// Builds a nested structure embedding the four secrets at various positions.
 function structureArb(secret1: string, secret2: string, secret3: string, secret4: string) {
   return fc.record({
     topLevel: fc.constant(secret1),
@@ -42,9 +38,7 @@ function structureArb(secret1: string, secret2: string, secret3: string, secret4
   })
 }
 
-// ---------------------------------------------------------------------------
 // Property 14: Secrets are redacted from all serialized output
-// ---------------------------------------------------------------------------
 
 describe('redactSecrets', () => {
   // Feature: polygon-amoy-phpc-migration, Property 14: Secrets are redacted from all serialized output
@@ -83,22 +77,53 @@ describe('redactSecrets', () => {
 })
 
 describe('collectConfiguredSecrets', () => {
-  it('collects deployer key, key-encryption key, QR token secret, and extras', () => {
+  it('collects all five Stellar secrets plus extras in order', () => {
     const result = collectConfiguredSecrets(
-      { deployerKey: 'abc', keyEncryptionKey: 'def', qrTokenSecret: 'ghi' },
+      {
+        issuerSecret: 'issuer-key',
+        distributionSecret: 'dist-key',
+        sponsorSecret: 'sponsor-key',
+        keyEncryptionKey: 'enc-key',
+        qrTokenSecret: 'qr-key',
+      },
       'extra1',
     )
 
-    expect(result).toEqual(['abc', 'def', 'ghi', 'extra1'])
+    expect(result).toEqual([
+      'issuer-key',
+      'dist-key',
+      'sponsor-key',
+      'enc-key',
+      'qr-key',
+      'extra1',
+    ])
   })
 
-  it('filters out empty configured values', () => {
+  it('filters out empty/falsy configured values', () => {
     const result = collectConfiguredSecrets({
-      deployerKey: 'abc',
+      issuerSecret: 'issuer-key',
+      distributionSecret: '',
+      sponsorSecret: 'sponsor-key',
       keyEncryptionKey: '',
-      qrTokenSecret: 'ghi',
+      qrTokenSecret: 'qr-key',
     })
 
-    expect(result).toEqual(['abc', 'ghi'])
+    expect(result).toEqual(['issuer-key', 'sponsor-key', 'qr-key'])
+  })
+
+  it('includes extra secrets appended via rest args', () => {
+    const result = collectConfiguredSecrets(
+      {
+        issuerSecret: 'a',
+        distributionSecret: 'b',
+        sponsorSecret: 'c',
+        keyEncryptionKey: 'd',
+        qrTokenSecret: 'e',
+      },
+      'extra1',
+      'extra2',
+    )
+
+    expect(result).toEqual(['a', 'b', 'c', 'd', 'e', 'extra1', 'extra2'])
   })
 })

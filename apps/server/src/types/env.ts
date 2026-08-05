@@ -1,10 +1,6 @@
-/**
- * Hono environment bindings type.
- *
- * BE1 owns this file. All env vars consumed by the server are typed here.
- * Chain vars target Polygon Amoy (chain ID 80002) per the
- * polygon-amoy-phpc-migration spec; Ronin/Saigon vars have been removed.
- */
+// Hono environment bindings type.
+// BE1 owns this file. All env vars consumed by the server are typed here.
+// Chain vars target Stellar testnet per the Stellar migration.
 
 export interface Env {
   // Supabase
@@ -29,26 +25,17 @@ export interface Env {
   GEMINI_VISION_MODEL?: string
   GEMINI_CONFIDENCE_THRESHOLD?: string
 
-  // Polygon Amoy chain (BE2 owns)
-  POLYGON_AMOY_RPC_URL: string
-  DEPLOYER_PRIVATE_KEY: string
-  LGU_ADMIN_WALLET_ADDRESS: string
+  // Stellar chain (active — consumed by chain/config.ts)
+  STELLAR_HORIZON_URL: string
+  STELLAR_NETWORK_PASSPHRASE: string
+  PHPC_ASSET_CODE: string
+  PHPC_ISSUER_PUBLIC_KEY: string
+  PHPC_ISSUER_SECRET: string
+  PHPC_DISTRIBUTION_SECRET: string
+  STELLAR_SPONSOR_SECRET: string
 
-  // Beneficiary custodial key encryption (separate from any datastore)
+  // Beneficiary custodial key encryption
   CUSTODIAL_KEY_ENCRYPTION_KEY: string
-
-  // Deployed contract addresses (BE2 populates after deploy)
-  PHPC_TOKEN_ADDRESS: string
-  PHPC_SUBSIDY_ADDRESS: string
-  // Retained: still read by apps/web (lib/chain/contracts.ts, lib/env.ts).
-  // Not part of the PHPC/Amoy contract set introduced by this migration.
-  BENEFICIARY_REGISTRY_ADDRESS: string
-  MERCHANT_REGISTRY_ADDRESS: string
-
-  // Deprecated: superseded by LGU_ADMIN_WALLET_ADDRESS. Still read by
-  // apps/server/src/routes/chain.ts and apps/web/lib/env.ts pending the
-  // BlockchainClient rewrite (Task 3.5) that migrates those call sites.
-  LGU_TREASURY_ADDRESS?: string
 
   // Optional
   CORS_ORIGIN?: string

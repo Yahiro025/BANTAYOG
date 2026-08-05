@@ -1,6 +1,5 @@
-// ---------------------------------------------------------------------------
+
 // Item Card — displays a single cart item in checkout / result views
-// ---------------------------------------------------------------------------
 
 interface ItemCardProps {
   name: string;

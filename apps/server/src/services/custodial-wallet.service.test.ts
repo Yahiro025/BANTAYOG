@@ -2,20 +2,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import fc from 'fast-check'
 import type { ChainConfig } from '../lib/chain/config.js'
 import type { BeneficiaryWalletRepository } from '../repositories/beneficiary-wallet.repository.js'
+import type { MerchantWalletRepository } from '../repositories/merchant-wallet.repository.js'
 import { CustodialWalletService } from './custodial-wallet.service.js'
+import { ok, err, OnchainError } from '../lib/errors.js'
 
-// ---------------------------------------------------------------------------
 // Fixtures
-// ---------------------------------------------------------------------------
 
 function buildConfig(overrides: Partial<ChainConfig> = {}): ChainConfig {
   return {
-    rpcUrl: 'https://rpc-amoy.example.com',
-    chainId: 80002,
-    deployerKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
-    lguAdminWallet: '0x1234567890123456789012345678901234567890',
-    phpcTokenAddress: '0xABCDEF0123456789ABCDEF0123456789ABCDEF01',
-    phpcSubsidyAddress: '0x9876543210987654321098765432109876543210',
+    horizonUrl: 'https://horizon-testnet.stellar.org',
+    networkPassphrase: 'Test SDF Network ; September 2015',
+    assetCode: 'PHPC',
+    issuerPublicKey: 'GBZFCMQFAKQTAC7THZMRGVBM5QXRDRFEJXT6XLBRIAAGIQCH5WGE2PW2',
+    issuerSecret: 'SCZANGBA5YHTNYVVV3C7CAZMCLXPILIKVCELCY5GTTIY3STJZH5EQULLY',
+    distributionSecret: 'SCZANGBA5YHTNYVVV3C7CAZMCLXPILIKVCELCY5GTTIY3STJZH5EQULLY',
+    sponsorSecret: 'SCZANGBA5YHTNYVVV3C7CAZMCLXPILIKVCELCY5GTTIY3STJZH5EQULLY',
     keyEncryptionKey: 'test-key-encryption-key',
     qrTokenSecret: 'test-qr-token-secret',
     qrTokenTtlSeconds: 300,
@@ -34,26 +35,22 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 describe('CustodialWalletService.generateWallet', () => {
   it('treats wallet generation as failed after exactly 3 collision attempts, without inserting a row', async () => {
     const { mockRepo, findByMock, insertMock } = buildMockRepo({
-      findBy: vi.fn().mockResolvedValue([{ address: '0xcollision0000000000000000000000000000000' }]),
+      findBy: vi.fn().mockResolvedValue([{ address: 'GCOLLISIONADDRESSNOTREAL' }]),
     })
 
-    const service = new CustodialWalletService(buildConfig(), mockRepo)
-    const result = await service.generateWallet('some-beneficiary-id')
+    const service = new CustodialWalletService(buildConfig())
+    const result = await service.generateWallet('some-beneficiary-id', 'beneficiary', mockRepo)
 
     expect(result.isErr()).toBe(true)
     if (result.isErr()) {
       expect(result.error.message).toContain('3 attempts')
     }
-    // Exactly 3 attempts, not more, not fewer.
     expect(findByMock).toHaveBeenCalledTimes(3)
-    // Never persisted since every attempt collided.
     expect(insertMock).not.toHaveBeenCalled()
   })
 
@@ -62,46 +59,102 @@ describe('CustodialWalletService.generateWallet', () => {
       findBy: vi.fn().mockResolvedValue([]),
     })
 
-    const service = new CustodialWalletService(buildConfig(), mockRepo)
-    const result = await service.generateWallet('some-beneficiary-id')
+    const service = new CustodialWalletService(buildConfig())
+    const result = await service.generateWallet('some-beneficiary-id', 'beneficiary', mockRepo)
 
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
-      expect(result.value.address).toMatch(/^0x[0-9a-fA-F]{40}$/)
+      // Stellar public keys start with G and are 56 chars
+      expect(result.value.address).toMatch(/^G[A-Z2-7]{55}$/)
     }
-    // No collision means uniqueness is verified once, on the first attempt.
     expect(findByMock).toHaveBeenCalledTimes(1)
     expect(insertMock).toHaveBeenCalledTimes(1)
   })
+
+  it('works for merchant role', async () => {
+    const insertMock = vi.fn()
+    const findByMock = vi.fn().mockResolvedValue([])
+    const mockRepo = { findBy: findByMock, insert: insertMock } as unknown as MerchantWalletRepository
+
+    const service = new CustodialWalletService(buildConfig())
+    const result = await service.generateWallet('some-merchant-id', 'merchant', mockRepo)
+
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value.address).toMatch(/^G[A-Z2-7]{55}$/)
+    }
+    expect(insertMock).toHaveBeenCalledTimes(1)
+    const row = insertMock.mock.calls[0][0]
+    expect(row).toHaveProperty('merchant_id', 'some-merchant-id')
+  })
+
+  it('provisions the account on-chain when a chainClient is supplied and reports provisioned: true on success', async () => {
+    const { mockRepo } = buildMockRepo({ findBy: vi.fn().mockResolvedValue([]) })
+    const provisionAccountMock = vi.fn().mockResolvedValue(ok(undefined))
+    const fakeChainClient = { provisionAccount: provisionAccountMock } as any
+
+    const service = new CustodialWalletService(buildConfig())
+    const result = await service.generateWallet('some-beneficiary-id', 'beneficiary', mockRepo, fakeChainClient)
+
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value.provisioned).toBe(true)
+    }
+    expect(provisionAccountMock).toHaveBeenCalledTimes(1)
+    const callArg = provisionAccountMock.mock.calls[0][0]
+    expect(callArg.accountId).toMatch(/^G[A-Z2-7]{55}$/)
+    expect(typeof callArg.accountSecret).toBe('string')
+  })
+
+  it('does NOT fail wallet generation when on-chain provisioning fails; reports provisioned: false and still persists the DB row', async () => {
+    const { mockRepo, insertMock } = buildMockRepo({ findBy: vi.fn().mockResolvedValue([]) })
+    const provisionAccountMock = vi.fn().mockResolvedValue(err(new OnchainError('Horizon unreachable', 0)))
+    const fakeChainClient = { provisionAccount: provisionAccountMock } as any
+
+    const service = new CustodialWalletService(buildConfig())
+    const result = await service.generateWallet('some-beneficiary-id', 'beneficiary', mockRepo, fakeChainClient)
+
+    // The wallet row is already persisted by the time provisioning runs, so
+    // a Horizon outage must not turn into a failed registration.
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value.provisioned).toBe(false)
+    }
+    expect(insertMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports provisioned: false when no chainClient is supplied at all (config-load failure upstream)', async () => {
+    const { mockRepo } = buildMockRepo({ findBy: vi.fn().mockResolvedValue([]) })
+
+    const service = new CustodialWalletService(buildConfig())
+    const result = await service.generateWallet('some-beneficiary-id', 'beneficiary', mockRepo)
+
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value.provisioned).toBe(false)
+    }
+  })
 })
 
-// ---------------------------------------------------------------------------
-// Property 9: Each beneficiary maps to exactly one globally unique wallet
+// Property 9: Each entity maps to exactly one globally unique wallet
 // address, with collision retry.
-// Feature: polygon-amoy-phpc-migration, Property 9: Each beneficiary maps to
-// exactly one globally unique wallet address, with collision retry
-// Validates: Requirements 5.1, 5.3, 5.4
-// ---------------------------------------------------------------------------
 
 describe('Property 9: each beneficiary maps to exactly one globally unique wallet address, with collision retry', () => {
   it('retries up to 3 attempts on collision and succeeds once a unique address is found, or fails after exhausting all 3', async () => {
     await fc.assert(
       fc.asyncProperty(fc.integer({ min: 0, max: 3 }), async (collisionsBeforeUnique) => {
-        // collisionsBeforeUnique: how many of the first N findBy calls report a
-        // collision before a unique address is found (0 = succeeds immediately,
-        // 3 = never unique -> fails).
         let callCount = 0
         const findByMock = vi.fn().mockImplementation(async () => {
           callCount++
           return callCount <= collisionsBeforeUnique
-            ? [{ address: '0xcollision0000000000000000000000000000000' }]
+            ? [{ address: 'GCOLLISIONADDRESS' }]
             : []
         })
         const insertMock = vi.fn().mockResolvedValue(undefined)
         const mockRepo = { findBy: findByMock, insert: insertMock } as unknown as BeneficiaryWalletRepository
 
-        const service = new CustodialWalletService(buildConfig(), mockRepo)
-        const result = await service.generateWallet('beneficiary-x')
+        const service = new CustodialWalletService(buildConfig())
+        const result = await service.generateWallet('beneficiary-x', 'beneficiary', mockRepo)
 
         if (collisionsBeforeUnique < 3) {
           expect(result.isOk()).toBe(true)
@@ -118,13 +171,7 @@ describe('Property 9: each beneficiary maps to exactly one globally unique walle
   })
 })
 
-// ---------------------------------------------------------------------------
-// Property 10: Beneficiary private keys are persisted only in encrypted
-// form.
-// Feature: polygon-amoy-phpc-migration, Property 10: Beneficiary private
-// keys are persisted only in encrypted form
-// Validates: Requirements 5.2, 6.1
-// ---------------------------------------------------------------------------
+// Property 10: Private keys are persisted only in encrypted form.
 
 describe('Property 10: beneficiary private keys are persisted only in encrypted form', () => {
   it('never persists the plaintext private key; only ciphertext/iv/authTag are inserted, and ciphertext differs from plaintext', async () => {
@@ -132,8 +179,8 @@ describe('Property 10: beneficiary private keys are persisted only in encrypted 
       fc.asyncProperty(fc.uuid(), async (beneficiaryId) => {
         const { mockRepo, insertMock } = buildMockRepo({ findBy: vi.fn().mockResolvedValue([]) })
 
-        const service = new CustodialWalletService(buildConfig(), mockRepo)
-        const result = await service.generateWallet(beneficiaryId)
+        const service = new CustodialWalletService(buildConfig())
+        const result = await service.generateWallet(beneficiaryId, 'beneficiary', mockRepo)
         expect(result.isOk()).toBe(true)
 
         expect(insertMock).toHaveBeenCalledTimes(1)
@@ -143,133 +190,104 @@ describe('Property 10: beneficiary private keys are persisted only in encrypted 
         expect(insertedRow).toHaveProperty('enc_auth_tag')
         expect(insertedRow).not.toHaveProperty('privateKey')
         expect(insertedRow).not.toHaveProperty('private_key')
-        // The ciphertext must not equal a hex/plaintext-looking private key format.
-        expect(insertedRow.enc_ciphertext).not.toMatch(/^0x[0-9a-fA-F]{64}$/)
+        expect(insertedRow).not.toHaveProperty('secretSeed')
+        // The ciphertext must not equal a Stellar secret seed format
+        expect(insertedRow.enc_ciphertext).not.toMatch(/^S[A-Z2-7]{55}$/)
       }),
       { numRuns: 30 },
     )
   })
 })
 
-// ---------------------------------------------------------------------------
 // Property 11: Wallet key encryption/decryption round-trip enables signing.
-// Feature: polygon-amoy-phpc-migration, Property 11: Wallet key
-// encryption/decryption round-trip enables signing
-// Validates: Requirements 6.2
-// ---------------------------------------------------------------------------
 
 describe('Property 11: wallet key encryption/decryption round-trip enables signing', () => {
-  it('signWithBeneficiaryKey decrypts the stored key and produces a valid signature via signFn', async () => {
+  it('withDecryptedKey decrypts the stored key and produces a valid Keypair via callback', async () => {
     await fc.assert(
       fc.asyncProperty(fc.uuid(), async (beneficiaryId) => {
-        // Capture what generateWallet actually encrypts by using a mock repo
-        // that stores the inserted row, then feeding it back via findBy for
-        // signWithBeneficiaryKey.
-        let storedRow: any
-        const findByMock = vi.fn().mockImplementation(async (column: string) => {
-          if (column === 'address') return [] // no collision during generateWallet
-          if (column === 'beneficiary_id') return storedRow ? [storedRow] : []
-          return []
-        })
-        const insertMock = vi.fn().mockImplementation(async (row: any) => {
-          storedRow = row
-          return row
-        })
-        const mockRepo = { findBy: findByMock, insert: insertMock } as unknown as BeneficiaryWalletRepository
-
-        const service = new CustodialWalletService(buildConfig(), mockRepo)
-        const genResult = await service.generateWallet(beneficiaryId)
-        expect(genResult.isOk()).toBe(true)
-
-        const signResult = await service.signWithBeneficiaryKey(beneficiaryId, async (account) => {
-          // signFn receives a real viem Account derived from the decrypted key
-          // — prove it's usable by signing a message and returning the signer
-          // address.
-          const signature = await account.signMessage({ message: 'round-trip-test' })
-          return { address: account.address, signature }
-        })
-
-        expect(signResult.isOk()).toBe(true)
-        if (signResult.isOk() && genResult.isOk()) {
-          expect(signResult.value.address.toLowerCase()).toBe(genResult.value.address.toLowerCase())
-          expect(signResult.value.signature).toMatch(/^0x[0-9a-fA-F]+$/)
-        }
-      }),
-      { numRuns: 20 },
-    )
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Property 12: Decrypted key material is erased after signing.
-// Feature: polygon-amoy-phpc-migration, Property 12: Decrypted key material
-// is erased after signing
-// Validates: Requirements 6.3
-// ---------------------------------------------------------------------------
-
-describe('Property 12: decrypted key material is erased after signing', () => {
-  it('zeroizes the decrypted key buffer (via Buffer.prototype.fill(0)) whether signFn succeeds or throws', async () => {
-    await fc.assert(
-      fc.asyncProperty(fc.uuid(), fc.boolean(), async (beneficiaryId, shouldThrow) => {
-        let storedRow: any
+        let storedRow: Record<string, unknown>
         const findByMock = vi.fn().mockImplementation(async (column: string) => {
           if (column === 'address') return []
           if (column === 'beneficiary_id') return storedRow ? [storedRow] : []
           return []
         })
-        const insertMock = vi.fn().mockImplementation(async (row: any) => {
+        const insertMock = vi.fn().mockImplementation(async (row: Record<string, unknown>) => {
           storedRow = row
           return row
         })
         const mockRepo = { findBy: findByMock, insert: insertMock } as unknown as BeneficiaryWalletRepository
 
-        const service = new CustodialWalletService(buildConfig(), mockRepo)
-        await service.generateWallet(beneficiaryId)
+        const service = new CustodialWalletService(buildConfig())
+        const genResult = await service.generateWallet(beneficiaryId, 'beneficiary', mockRepo)
+        expect(genResult.isOk()).toBe(true)
 
-        // Spy on Buffer.prototype.fill to directly observe zeroization of the
-        // decrypted key buffer. This is the most direct verification
-        // available without modifying the production code's public API for
-        // testability — `keyBuffer` is a private local variable, but its
-        // `.fill(0)` call is a real prototype method call we can intercept.
-        const fillSpy = vi.spyOn(Buffer.prototype, 'fill')
-
-        const signResult = await service.signWithBeneficiaryKey(beneficiaryId, async (account) => {
-          if (shouldThrow) {
-            throw new Error('simulated signFn failure')
-          }
-          return account.address
+        const keyResult = await service.withDecryptedKey(beneficiaryId, 'beneficiary', mockRepo, async (keypair) => {
+          // The callback receives a Stellar Keypair; prove it matches the generated address
+          return { publicKey: keypair.publicKey() }
         })
 
-        if (shouldThrow) {
-          expect(signResult.isErr()).toBe(true)
-        } else {
-          expect(signResult.isOk()).toBe(true)
+        expect(keyResult.isOk()).toBe(true)
+        if (keyResult.isOk() && genResult.isOk()) {
+          expect(keyResult.value.publicKey).toBe(genResult.value.address)
         }
-
-        // The decrypted key buffer must have been zeroized with fill(0),
-        // regardless of whether signFn succeeded or threw.
-        const zeroFillCalls = fillSpy.mock.calls.filter((args) => args[0] === 0)
-        expect(zeroFillCalls.length).toBeGreaterThanOrEqual(1)
-
-        fillSpy.mockRestore()
-
-        // A second independent call must still work correctly (no lingering
-        // state from the first call's buffer leaks across calls).
-        const secondSignResult = await service.signWithBeneficiaryKey(beneficiaryId, async (account) => account.address)
-        expect(secondSignResult.isOk()).toBe(true)
       }),
       { numRuns: 20 },
     )
   })
 })
 
-// ---------------------------------------------------------------------------
+// Property 12: Decrypted key material is erased after signing.
+
+describe('Property 12: decrypted key material is erased after signing', () => {
+  it('zeroizes the decrypted key buffer (via Buffer.prototype.fill(0)) whether callback succeeds or throws', async () => {
+    await fc.assert(
+      fc.asyncProperty(fc.uuid(), fc.boolean(), async (beneficiaryId, shouldThrow) => {
+        let storedRow: Record<string, unknown>
+        const findByMock = vi.fn().mockImplementation(async (column: string) => {
+          if (column === 'address') return []
+          if (column === 'beneficiary_id') return storedRow ? [storedRow] : []
+          return []
+        })
+        const insertMock = vi.fn().mockImplementation(async (row: Record<string, unknown>) => {
+          storedRow = row
+          return row
+        })
+        const mockRepo = { findBy: findByMock, insert: insertMock } as unknown as BeneficiaryWalletRepository
+
+        const service = new CustodialWalletService(buildConfig())
+        await service.generateWallet(beneficiaryId, 'beneficiary', mockRepo)
+
+        const fillSpy = vi.spyOn(Buffer.prototype, 'fill')
+
+        const result = await service.withDecryptedKey(beneficiaryId, 'beneficiary', mockRepo, async (keypair) => {
+          if (shouldThrow) {
+            throw new Error('simulated callback failure')
+          }
+          return keypair.publicKey()
+        })
+
+        if (shouldThrow) {
+          expect(result.isErr()).toBe(true)
+        } else {
+          expect(result.isOk()).toBe(true)
+        }
+
+        const zeroFillCalls = fillSpy.mock.calls.filter((args) => args[0] === 0)
+        expect(zeroFillCalls.length).toBeGreaterThanOrEqual(1)
+
+        fillSpy.mockRestore()
+
+        // A second independent call must still work correctly
+        const secondResult = await service.withDecryptedKey(beneficiaryId, 'beneficiary', mockRepo, async (keypair) => keypair.publicKey())
+        expect(secondResult.isOk()).toBe(true)
+      }),
+      { numRuns: 20 },
+    )
+  })
+})
+
 // Property 13: Decryption failure aborts signing without exposing or
 // mutating key material.
-// Feature: polygon-amoy-phpc-migration, Property 13: Decryption failure
-// aborts signing without exposing or mutating key material
-// Validates: Requirements 6.4
-// ---------------------------------------------------------------------------
 
 describe('Property 13: decryption failure aborts signing without exposing or mutating key material', () => {
   it('aborts and returns an error excluding key material when the stored ciphertext is corrupted', async () => {
@@ -277,24 +295,23 @@ describe('Property 13: decryption failure aborts signing without exposing or mut
       fc.asyncProperty(fc.uuid(), async (beneficiaryId) => {
         const corruptedRow = {
           enc_ciphertext: 'not-valid-base64-ciphertext!!!',
-          enc_iv: Buffer.from('aaaaaaaaaaaa').toString('base64'), // valid-length but wrong IV
+          enc_iv: Buffer.from('aaaaaaaaaaaa').toString('base64'),
           enc_auth_tag: Buffer.from('bbbbbbbbbbbbbbbb').toString('base64'),
         }
         const findByMock = vi.fn().mockResolvedValue([corruptedRow])
         const mockRepo = { findBy: findByMock, insert: vi.fn() } as unknown as BeneficiaryWalletRepository
 
-        const service = new CustodialWalletService(buildConfig(), mockRepo)
-        let signFnCalled = false
-        const signResult = await service.signWithBeneficiaryKey(beneficiaryId, async (account) => {
-          signFnCalled = true
-          return account.address
+        const service = new CustodialWalletService(buildConfig())
+        let callbackCalled = false
+        const result = await service.withDecryptedKey(beneficiaryId, 'beneficiary', mockRepo, async (_keypair) => {
+          callbackCalled = true
+          return 'should-not-reach'
         })
 
-        expect(signResult.isErr()).toBe(true)
-        expect(signFnCalled).toBe(false) // signFn must never be invoked on decryption failure
-        if (signResult.isErr()) {
-          // The error must not leak the corrupted ciphertext or any key-like hex string.
-          expect(signResult.error.message).not.toContain(corruptedRow.enc_ciphertext)
+        expect(result.isErr()).toBe(true)
+        expect(callbackCalled).toBe(false)
+        if (result.isErr()) {
+          expect(result.error.message).not.toContain(corruptedRow.enc_ciphertext)
         }
       }),
       { numRuns: 20 },

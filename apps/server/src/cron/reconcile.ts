@@ -1,6 +1,9 @@
 import { createServiceClient } from '../lib/supabase.js'
-import { BlockchainClient } from '../services/chain.client.js'
+import { StellarClient } from '../services/chain.client.js'
 import { loadChainConfig } from '../lib/chain/config.js'
+import { CustodialWalletService } from '../services/custodial-wallet.service.js'
+import { BeneficiaryWalletRepository } from '../repositories/beneficiary-wallet.repository.js'
+import { MerchantWalletRepository } from '../repositories/merchant-wallet.repository.js'
 import { logger } from '../lib/logger.js'
 import { TransactionService } from '../services/transaction.service.js'
 
@@ -9,9 +12,28 @@ export interface ReconcileResult {
   failed: number
 }
 
-/**
- * Polling worker to process the transaction outbox and submit them to the blockchain.
- */
+// Shape of the `outbox.payload_jsonb` column for `TRANSACTION_CHAIN_SUBMIT`
+// rows, written by the `settle_sale_and_enqueue` Postgres function
+// (migration 00012). `amountStroops` and `totalCreditDeducted` travel
+// through JSONB as strings/numbers — `amountStroops` MUST be converted with
+// `BigInt(...)` before use, since raw JSONB values are never actual bigints
+// at the JS boundary.
+interface OutboxSettlementPayload {
+  transactionId: string
+  beneficiaryId: string
+  merchantId: string
+  amountStroops: string
+  categoryTotals?: Record<string, number>
+  totalCreditDeducted?: number
+}
+
+// Polling worker to process the transaction outbox and submit Stellar
+// payments (fee-bumped beneficiary-to-merchant) serially.
+// Per the runbook (Phase 5, step 3): builds a payment from the beneficiary
+// account to the merchant account, signed through the custody service's
+// short-lived key callback, wrapped in a fee-bump transaction paid by the
+// sponsor account. The semantic outbox row contains identifiers and amounts,
+// not secrets. Processing is serial (risk R3: sequence number collisions).
 export async function runReconciliation(): Promise<ReconcileResult> {
   const db = createServiceClient()
   const cronLogger = logger.child({ requestId: 'cron-reconcile' })
@@ -22,23 +44,26 @@ export async function runReconciliation(): Promise<ReconcileResult> {
     return { processed: 0, failed: 0 }
   }
 
-  const clientResult = await BlockchainClient.create(configResult.value)
+  const clientResult = await StellarClient.create(configResult.value)
   if (clientResult.isErr()) {
-    cronLogger.error({ error: clientResult.error.message, msg: 'Failed to construct BlockchainClient' })
+    cronLogger.error({ error: clientResult.error.message, msg: 'Failed to construct StellarClient' })
     return { processed: 0, failed: 0 }
   }
 
   const chainClient = clientResult.value
   const transactionService = new TransactionService(db)
+  const custodialWalletService = new CustodialWalletService(configResult.value)
+  const beneficiaryWalletRepo = new BeneficiaryWalletRepository(db)
+  const merchantWalletRepo = new MerchantWalletRepository(db)
 
-  // 1. Fetch PENDING outbox events
+  // 1. Fetch PENDING outbox events (serial, up to 20 per run)
   const { data: pendingEvents, error: fetchError } = await (db as any)
     .from('outbox')
     .select('*')
     .eq('status', 'PENDING')
     .eq('kind', 'TRANSACTION_CHAIN_SUBMIT')
     .order('created_at', { ascending: true })
-    .limit(20)
+    .limit(100) // Batched up to 100 per ledger close
 
   if (fetchError) {
     cronLogger.error({ error: fetchError.message, msg: 'Failed to fetch pending outbox events' })
@@ -54,12 +79,59 @@ export async function runReconciliation(): Promise<ReconcileResult> {
   let processedCount = 0
   let failedCount = 0
 
+  // BATCH PROCESSING ATTEMPT
+  
+  try {
+    const purchases = []
+    
+    // Lock all and resolve accounts
+    for (const event of pendingEvents) {
+      await (db as any).from('outbox').update({ status: 'PROCESSING' }).eq('id', event.id)
+      
+      const payload = event.payload_jsonb as OutboxSettlementPayload
+      const merchantWallets = await merchantWalletRepo.findBy('merchant_id', payload.merchantId, 1)
+      const benWallets = await beneficiaryWalletRepo.findBy('beneficiary_id', payload.beneficiaryId, 1)
+      
+      if (!merchantWallets[0] || !benWallets[0]) throw new Error('Missing wallet')
+      
+      purchases.push({
+        beneficiaryAccountId: benWallets[0].address,
+        merchantAccountId: merchantWallets[0].address,
+        amountStroops: BigInt(payload.amountStroops),
+        beneficiarySigner: async (tx: any) => {
+          await custodialWalletService.withDecryptedKey(payload.beneficiaryId, 'beneficiary', beneficiaryWalletRepo, async (kp) => { tx.sign(kp) })
+        }
+      })
+    }
+
+    const batchResult = await chainClient.settlePurchasesBatch(purchases)
+    
+    if (batchResult.isOk()) {
+      const { hash: txHash, ledger } = batchResult.value
+      cronLogger.info({ txHash, ledger, msg: `Batch Stellar payment confirmed for ${purchases.length} checkouts` })
+      
+      const eventIds = pendingEvents.map((e: any) => e.id)
+      const txIds = pendingEvents.map((e: any) => (e.payload_jsonb as OutboxSettlementPayload).transactionId)
+      
+      await (db as any).from('outbox').update({ status: 'DONE', processed_at: new Date().toISOString() }).in('id', eventIds)
+      await (db as any).from('transactions').update({ status: 'CONFIRMED', onchain_tx_hash: txHash, ledger_sequence: ledger, confirmed_at: new Date().toISOString() }).in('id', txIds)
+      
+      return { processed: pendingEvents.length, failed: 0 }
+    } else {
+      cronLogger.warn({ msg: 'Batch settlement returned error, falling back to serial processing', error: batchResult.error.message })
+    }
+  } catch (e: any) {
+    cronLogger.warn({ msg: 'Batch settlement threw an exception, falling back to serial processing', error: e.message })
+  }
+
+  // FALLBACK: SERIAL PROCESSING
+
   for (const event of pendingEvents) {
-    const payload = event.payload_jsonb as any
-    const { transactionId, beneficiaryId, merchantId, stablecoinAmountWei, totalCreditDeducted } = payload
+    const payload = event.payload_jsonb as OutboxSettlementPayload
+    const { transactionId, beneficiaryId, merchantId, amountStroops, totalCreditDeducted } = payload
 
     try {
-      // Step 2: Mark outbox entry as PROCESSING to prevent duplicate runs
+      // Step 2: Mark outbox entry as PROCESSING
       const { error: lockError } = await (db as any)
         .from('outbox')
         .update({ status: 'PROCESSING' })
@@ -70,119 +142,118 @@ export async function runReconciliation(): Promise<ReconcileResult> {
         continue
       }
 
-      // Step 3: Fetch merchant profile to get wallet address
-      const { data: merchant, error: merchantError } = await (db as any)
-        .from('merchants')
-        .select('wallet_address')
-        .eq('id', merchantId)
-        .single()
+      // Step 3: Resolve merchant public address from the custody source of truth
+      const merchantWallets = await merchantWalletRepo.findBy('merchant_id', merchantId, 1)
+      if (merchantWallets.length === 0) {
+        throw new Error(`Merchant wallet not found: ${merchantId}`)
+      }
+      const merchantAccountId = merchantWallets[0].address
 
-      if (merchantError || !merchant) {
-        throw new Error(`Merchant not found or has no wallet: ${merchantError?.message || merchantId}`)
+      // Step 3b: Pre-check the merchant's trustline before submitting (risk
+      // R1). A payment to an account without an authorized trustline fails
+      // outright on Stellar, with no EVM equivalent.
+      const merchantTrustlineResult = await chainClient.hasAuthorizedTrustline(merchantAccountId)
+      if (merchantTrustlineResult.isErr()) {
+        throw new Error(`Failed to check merchant trustline: ${merchantTrustlineResult.error.message}`)
+      }
+      if (!merchantTrustlineResult.value) {
+        throw new Error(`Merchant account ${merchantAccountId} does not have an authorized PHPC trustline`)
       }
 
-      // Step 4: Submit on-chain transaction
+      // Step 3c: amountStroops travels through JSONB as a string; the chain
+      // layer requires a real bigint. Convert explicitly rather than letting
+      // BigInt arithmetic throw on a string operand.
+      const amountStroopsBigInt = BigInt(amountStroops)
+
+      // Step 4: Submit the Stellar payment via the custody callback.
+      // The beneficiary signs via withDecryptedKey; the sponsor fee-bumps.
       cronLogger.info({
         transactionId,
         beneficiaryId,
-        merchantWallet: merchant.wallet_address,
-        amountWei: stablecoinAmountWei,
-        msg: 'Submitting transaction to Polygon Amoy testnet'
+        merchantAccountId: merchantAccountId.slice(0, 8) + '...',
+        amountStroops,
+        msg: 'Submitting fee-bumped Stellar payment',
       })
 
-      // TODO(task 11): This is a plain PHPC transfer from the deployer/
-      // treasury wallet to the merchant, not the old subsidy-contract
-      // `processTransaction` (which atomically deducted from the
-      // beneficiary's own on-chain balance and credited the merchant in one
-      // call). Full custodial-wallet-based deduction semantics will be
-      // implemented when the purchase flow is rebuilt in tasks 6/7/11; this
-      // reconcile step currently only settles the merchant-credit leg.
-      const amountBigInt = BigInt(stablecoinAmountWei)
-      const transferResult = await chainClient.transferPHPC(merchant.wallet_address, amountBigInt)
-      if (transferResult.isErr()) {
-        throw new Error(transferResult.error.message)
-      }
-      const txHash = transferResult.value
-
-      cronLogger.info({ transactionId, txHash, msg: 'Submitted transaction on-chain. Waiting for confirmation...' })
-
-      // Step 5: Wait for transaction confirmation block receipt
-      const receiptResult = await chainClient.waitForConfirmation(txHash)
-      if (receiptResult.isErr()) {
-        throw new Error(receiptResult.error.message)
-      }
-      const receipt = receiptResult.value
-
-      if (receipt && receipt.status === 'success') {
-        cronLogger.info({ transactionId, txHash, msg: 'Transaction confirmed on-chain successfully!' })
-
-        // Update outbox event to DONE
-        await (db as any)
-          .from('outbox')
-          .update({
-            status: 'DONE',
-            processed_at: new Date().toISOString()
+      const settleResult = await custodialWalletService.withDecryptedKey(
+        beneficiaryId,
+        'beneficiary',
+        beneficiaryWalletRepo,
+        async (keypair) => {
+          return chainClient.settlePurchase({
+            beneficiaryAccountId: keypair.publicKey(),
+            beneficiarySecret: keypair.secret(),
+            merchantAccountId,
+            amountStroops: amountStroopsBigInt,
           })
-          .eq('id', event.id)
+        },
+      )
 
-        // Update transactions status to CONFIRMED
-        await (db as any)
-          .from('transactions')
-          .update({
-            status: 'CONFIRMED',
-            onchain_tx_hash: txHash,
-            confirmed_at: new Date().toISOString()
-          })
-          .eq('id', transactionId)
-
-        processedCount++
-      } else {
-        throw new Error(`Transaction on-chain receipt returned status: ${receipt?.status || 'unknown'}`)
+      if (settleResult.isErr()) {
+        throw new Error(settleResult.error.message)
       }
 
+      // The callback returns AppResult from settlePurchase; unwrap it.
+      const innerResult = settleResult.value
+      if (innerResult.isErr()) {
+        throw new Error(innerResult.error.message)
+      }
+
+      const { hash: txHash, ledger } = innerResult.value
+
+      cronLogger.info({ transactionId, txHash, ledger, msg: 'Stellar payment confirmed' })
+
+      // Step 5: Mark outbox DONE, update transaction to CONFIRMED with hash
+      await (db as any)
+        .from('outbox')
+        .update({
+          status: 'DONE',
+          processed_at: new Date().toISOString(),
+        })
+        .eq('id', event.id)
+
+      await (db as any)
+        .from('transactions')
+        .update({
+          status: 'CONFIRMED',
+          onchain_tx_hash: txHash,
+          ledger_sequence: ledger,
+          confirmed_at: new Date().toISOString(),
+        })
+        .eq('id', transactionId)
+
+      processedCount++
     } catch (error: any) {
       cronLogger.error({
         eventId: event.id,
         transactionId,
         error: error.message,
-        msg: 'Outbox transaction processing failed'
+        msg: 'Outbox transaction processing failed',
       })
 
       failedCount++
       const nextAttempts = event.attempts + 1
       const isPermanentlyFailed = nextAttempts >= 3
 
-      // Update outbox status to FAILED or back to PENDING for retry
       await (db as any)
         .from('outbox')
         .update({
           status: isPermanentlyFailed ? 'FAILED' : 'PENDING',
           attempts: nextAttempts,
-          last_error: error.message
+          last_error: error.message,
         })
         .eq('id', event.id)
 
       if (isPermanentlyFailed) {
-        // Compensating action (Requirement 7.10 / Task 11.3): restore the
-        // beneficiary's recorded balance if this outbox entry's flow
-        // deducted it before on-chain settlement was confirmed.
-        //
-        // NOTE: as of Task 11.2, the live synchronous purchase route
-        // (src/routes/transactions.ts) deducts the beneficiary's balance
-        // only *after* the on-chain transfer has already confirmed, so an
-        // outbox entry created by that path never reaches this branch with
-        // a pre-deducted balance to restore — the inconsistency Requirement
-        // 7.10 describes is prevented by construction, not repaired after
-        // the fact. This restoration call is a defensive safety net for any
-        // future or legacy code path that still creates a
-        // TRANSACTION_CHAIN_SUBMIT outbox entry with the balance already
-        // deducted (the old deduct-then-settle ordering).
+        // Compensating action: restore beneficiary balance since the
+        // Postgres deduction via settle_sale already happened but the
+        // on-chain settlement permanently failed.
         const restoreAmount = Number(totalCreditDeducted ?? 0)
         if (restoreAmount > 0) {
           const restoreResult = await transactionService.restoreBeneficiaryBalance(
             beneficiaryId,
             restoreAmount,
-            'On-chain transfer failed after 3 retry attempts'
+            'On-chain Stellar transfer failed after 3 retry attempts',
           )
           if (restoreResult.isErr()) {
             cronLogger.error({
@@ -190,12 +261,12 @@ export async function runReconciliation(): Promise<ReconcileResult> {
               transactionId,
               beneficiaryId,
               error: restoreResult.error.message,
-              msg: 'Failed to restore beneficiary balance after permanent on-chain transfer failure'
+              msg: 'Failed to restore beneficiary balance after permanent failure',
             })
           }
         }
 
-        // Mark transaction as failed in the DB
+        // Mark transaction as failed
         await (db as any)
           .from('transactions')
           .update({ status: 'FAILED' })

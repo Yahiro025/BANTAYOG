@@ -32,17 +32,11 @@ describe('QrTokenService', () => {
     expect(decoded.walletRef).toBe(payload.walletRef)
   })
 
-
-
   afterEach(() => {
     vi.useRealTimers()
   })
 
-
 })
-
-
-
 
 // Feature: polygon-amoy-phpc-migration, Property 22: QR token generate-then-verify round-trip resolves the same beneficiary and wallet
 // Validates: Requirements 7.1, 9.2, 9.3, 5.5
@@ -152,6 +146,5 @@ describe('Property 23: tampered or mis-signed QR tokens are rejected without res
       { numRuns: 20 },
     )
   })
-
 
 })

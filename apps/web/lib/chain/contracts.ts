@@ -1,15 +1,10 @@
-/**
- * Contract ABIs and address resolution.
- *
- * Hardhat-compiled artifacts are not checked in; we define minimal ABIs
- * inline derived from the Solidity source. Addresses are read from env.
- */
+// Contract ABIs and address resolution.
+// Hardhat-compiled artifacts are not checked in; we define minimal ABIs
+// inline derived from the Solidity source. Addresses are read from env.
 
 import { getAddress, type Abi } from "viem";
 
-// ---------------------------------------------------------------------------
 // Env helpers
-// ---------------------------------------------------------------------------
 
 function getContractAddress(name: string): `0x${string}` {
   const val = process.env[name];
@@ -22,9 +17,7 @@ function getContractAddress(name: string): `0x${string}` {
   return getAddress(val) as `0x${string}`;
 }
 
-// ---------------------------------------------------------------------------
 // Addresses (lazy resolution)
-// ---------------------------------------------------------------------------
 
 export function phpcTokenAddress(): `0x${string}` {
   return getContractAddress("PHPC_TOKEN_ADDRESS");
@@ -42,9 +35,7 @@ export function merchantRegistryAddress(): `0x${string}` {
   return getContractAddress("MERCHANT_REGISTRY_ADDRESS");
 }
 
-// ---------------------------------------------------------------------------
 // Minimal ABIs (derived from Solidity source)
-// ---------------------------------------------------------------------------
 
 export const PHPC_ABI: Abi = [
   {

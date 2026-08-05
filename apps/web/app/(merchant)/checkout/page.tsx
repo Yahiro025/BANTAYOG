@@ -42,9 +42,7 @@ function maskName(name: string): string {
     .join(" ");
 }
 
-// ---------------------------------------------------------------------------
 // Checkout Page + QR Scanner Modal + PIN Validation Modal (ref: 25-27.png)
-// ---------------------------------------------------------------------------
 
 type ModalState = "none" | "qr-scan" | "pin";
 
@@ -664,9 +662,7 @@ export default function CheckoutPage() {
   );
 }
 
-// ---------------------------------------------------------------------------
 // PIN Validation Modal Component
-// ---------------------------------------------------------------------------
 
 function PINModal({
   guardianName,

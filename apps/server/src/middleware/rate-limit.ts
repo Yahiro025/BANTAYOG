@@ -24,13 +24,10 @@ function getLimiter(name: string, limit: number, windowSeconds: number, url: str
   return limiters.get(key)!
 }
 
-/**
- * Creates a rate-limit middleware for a specific limiter.
- *
- * @param limiterName - identifier for the limiter (e.g. 'pin', 'gemini', 'login')
- * @param limit - max requests per window
- * @param windowSeconds - window size in seconds
- */
+// Creates a rate-limit middleware for a specific limiter.
+// @param limiterName - identifier for the limiter (e.g. 'pin', 'gemini', 'login')
+// @param limit - max requests per window
+// @param windowSeconds - window size in seconds
 export function rateLimit(limiterName: string, limit: number, windowSeconds: number) {
   return createMiddleware<{ Bindings: Env }>(async (c, next) => {
     const upstashUrl = process.env.UPSTASH_REDIS_REST_URL || c.env?.UPSTASH_REDIS_REST_URL

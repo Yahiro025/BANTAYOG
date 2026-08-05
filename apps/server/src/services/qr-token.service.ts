@@ -1,14 +1,10 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { type AppResult, ok, err, JwtError } from '../lib/errors.js'
 
-/**
- * BE1-2.3 · QR Token Service
- *
- * Generates and verifies signed JWS compact JWT tokens for QR passes.
- * Uses the jose library for performance and native edge compatibility.
- *
- * QR passes are now permanent pointers to the wallet address and do not expire.
- */
+// BE1-2.3 · QR Token Service
+// Generates and verifies signed JWS compact JWT tokens for QR passes.
+// Uses the jose library for performance and native edge compatibility.
+// QR passes are now permanent pointers to the wallet address and do not expire.
 export class QrTokenService {
   constructor(_ttlSeconds?: number) {
     // TTL is no longer used for generation, kept in signature for compatibility
@@ -19,13 +15,10 @@ export class QrTokenService {
     return new TextEncoder().encode(secret);
   }
 
-  /**
-   * Generates a signed JWT containing beneficiary metadata.
-   *
-   * The expiration is always computed from `this.ttlSeconds` (set at
-   * construction from `ChainConfig.qrTokenTtlSeconds`); callers no longer
-   * pass a per-call expiration.
-   */
+  // Generates a signed JWT containing beneficiary metadata.
+// The expiration is always computed from `this.ttlSeconds` (set at
+// construction from `ChainConfig.qrTokenTtlSeconds`); callers no longer
+// pass a per-call expiration.
   async generateToken(
     payload: {
       beneficiaryId: string;
@@ -33,7 +26,7 @@ export class QrTokenService {
       guardianName: string;
       tier: number;
       pin_hash_ref: string;
-      /** Beneficiary's custodial wallet address, embedded in the QR token (Requirement 5.5). */
+      // Beneficiary's custodial wallet address, embedded in the QR token (Requirement 5.5).
       walletRef: string;
     }
   ): Promise<AppResult<string>> {
@@ -59,19 +52,16 @@ export class QrTokenService {
     }
   }
 
-  /**
-   * Verifies and decodes a QR token.
-   *
-   * Accepts the token only when its signature matches the configured secret
-   * AND its embedded expiration is greater than the current time (Requirement
-   * 9.2). `jose`'s `jwtVerify` distinguishes these failure modes via
-   * `error.code`: `ERR_JWT_EXPIRED` for an expired-but-correctly-signed
-   * token, and everything else (including `ERR_JWS_SIGNATURE_VERIFICATION_FAILED`
-   * for tampered payloads/bad signatures) maps to `'invalid'` (Requirements
-   * 9.4, 9.5, 9.6). On either failure, no payload is returned — `err(...)`
-   * carries only the `JwtError`, never beneficiary identity or wallet
-   * reference.
-   */
+  // Verifies and decodes a QR token.
+// Accepts the token only when its signature matches the configured secret
+// AND its embedded expiration is greater than the current time (Requirement
+// 9.2). `jose`'s `jwtVerify` distinguishes these failure modes via
+// `error.code`: `ERR_JWT_EXPIRED` for an expired-but-correctly-signed
+// token, and everything else (including `ERR_JWS_SIGNATURE_VERIFICATION_FAILED`
+// for tampered payloads/bad signatures) maps to `'invalid'` (Requirements
+// 9.4, 9.5, 9.6). On either failure, no payload is returned — `err(...)`
+// carries only the `JwtError`, never beneficiary identity or wallet
+// reference.
   async verifyToken(token: string): Promise<AppResult<{
     beneficiaryId: string;
     childName: string;

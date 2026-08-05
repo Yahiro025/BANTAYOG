@@ -7,9 +7,7 @@ import { RecentTransactions } from "@/components/merchant/recent-transactions";
 import { useMerchantProfile } from "@/hooks/use-merchant-profile";
 import { LogoutConfirmationModal } from "@/components/merchant/logout-confirmation-modal";
 
-// ---------------------------------------------------------------------------
 // Merchant Dashboard — matches merchantPages/13.png
-// ---------------------------------------------------------------------------
 
 export default function MerchantDashboard() {
   const { data: profile, isLoading, isError, refetch } = useMerchantProfile();

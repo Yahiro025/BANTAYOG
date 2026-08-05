@@ -3,26 +3,25 @@ import fc from 'fast-check'
 import { ok, err } from 'neverthrow'
 import { BeneficiaryService } from './beneficiary.service.js'
 import { QrTokenService } from './qr-token.service.js'
-import { BlockchainClient } from './chain.client.js'
+import { StellarClient } from './chain.client.js'
 import { OnchainError } from '../lib/errors.js'
 
-// Controllable BlockchainClient.create result, set per test/property run
-// below (Tasks 10.3–10.5). The rest of this file's tests never call
-// `allocateTierCredits`/`reconcileAllocation`, so this mock has no effect on
-// them — `BeneficiaryService.register` never touches `BlockchainClient`.
+// Controllable StellarClient.create result, set per test/property run
+// below. `BeneficiaryService.register` now ALSO calls `StellarClient.create`
+// to provision the generated wallet on-chain (non-blocking on failure), so
+// every describe block below must provide a resolved value — default to a
+// successful create with a no-op `provisionAccount` unless a specific test
+// overrides it to exercise a provisioning failure.
 vi.mock('./chain.client.js', () => ({
-  BlockchainClient: {
+  StellarClient: {
     create: vi.fn(),
   },
 }))
 
-/**
- * Unit tests for BeneficiaryService.register's custodial-wallet wiring.
- *
- * Validates: Requirements 5.5 — a successful registration persists exactly
- * one `beneficiary_wallets` row and the QR token payload's `walletRef`
- * matches the stored wallet address.
- */
+// Unit tests for BeneficiaryService.register's custodial-wallet wiring.
+// Validates: Requirements 5.5 — a successful registration persists exactly
+// one `beneficiary_wallets` row and the QR token payload's `walletRef`
+// matches the stored wallet address.
 
 // ── Minimal stateful mock DB (self-contained; not imported from e2e tests) ──
 let mockDbState: Record<string, any[]> = {
@@ -150,13 +149,24 @@ describe('BeneficiaryService.register — custodial wallet wiring', () => {
     vi.clearAllMocks()
     resetMockDbState()
 
-    vi.stubEnv('POLYGON_AMOY_RPC_URL', 'https://rpc-amoy.example.com')
-    vi.stubEnv('DEPLOYER_PRIVATE_KEY', '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80')
-    vi.stubEnv('LGU_ADMIN_WALLET_ADDRESS', '0x1234567890123456789012345678901234567890')
-    vi.stubEnv('PHPC_TOKEN_ADDRESS', '0xABCDEF0123456789ABCDEF0123456789ABCDEF01')
-    vi.stubEnv('PHPC_SUBSIDY_ADDRESS', '0x9876543210987654321098765432109876543210')
+    vi.stubEnv('STELLAR_HORIZON_URL', 'https://horizon-testnet.stellar.org')
+    vi.stubEnv('STELLAR_NETWORK_PASSPHRASE', 'Test SDF Network ; September 2015')
+    vi.stubEnv('PHPC_ASSET_CODE', 'PHPC')
+    vi.stubEnv('PHPC_ISSUER_PUBLIC_KEY', 'GDVIX3H4TPPZ3ZR5TBYGV2BHVT5KZGIIACXPGTS3WJI7FCLIQMDKXBP6')
+    vi.stubEnv('PHPC_ISSUER_SECRET', 'SBLOCMCBZRMHGNNELJSDHS2UKCDI2KWDVTPQGJLX3IWM34ZTDOID7XCI')
+    vi.stubEnv('PHPC_DISTRIBUTION_SECRET', 'SD2ZBARMFVIIPB75WKI6GOEATW3CWEZ3FCMFRLWPS4H34KLP2WLXVKTR')
+    vi.stubEnv('STELLAR_SPONSOR_SECRET', 'SA5BA56CFEMCKAYOCKWQ7FRQHXG7VDMBLTHLAPUNKBYRY7P3R2XDIWKM')
     vi.stubEnv('CUSTODIAL_KEY_ENCRYPTION_KEY', 'test-key-encryption-key')
     vi.stubEnv('QR_TOKEN_SECRET', 'test-qr-token-secret')
+
+    // Default: StellarClient constructs successfully and provisioning
+    // succeeds, so these tests exercise the DB-persistence assertions
+    // without depending on Horizon connectivity.
+    ;(StellarClient.create as any).mockResolvedValue(
+      ok({
+        provisionAccount: vi.fn().mockResolvedValue(ok(undefined)),
+      }),
+    )
   })
 
   it('persists exactly one beneficiary_wallets row and embeds a matching walletRef in the QR token on successful registration', async () => {
@@ -214,16 +224,12 @@ describe('BeneficiaryService.register — custodial wallet wiring', () => {
   })
 })
 
-/**
- * Property 15: Registration wallet failure persists no partial state.
- *
- * Validates: Requirements 5.6
- *
- * Feature: polygon-amoy-phpc-migration, Property 15: when custodial wallet
- * generation fails during registration, no beneficiary record and no
- * partial beneficiary_wallets row are left persisted (the compensating
- * delete removes the just-inserted beneficiary row).
- */
+// Property 15: Registration wallet failure persists no partial state.
+// Validates: Requirements 5.6
+// Feature: polygon-amoy-phpc-migration, Property 15: when custodial wallet
+// generation fails during registration, no beneficiary record and no
+// partial beneficiary_wallets row are left persisted (the compensating
+// delete removes the just-inserted beneficiary row).
 describe('Property 15: registration wallet failure persists no partial state', () => {
   const originalFrom = mockSupabaseClient.from
 
@@ -231,11 +237,13 @@ describe('Property 15: registration wallet failure persists no partial state', (
     vi.clearAllMocks()
     resetMockDbState()
 
-    vi.stubEnv('POLYGON_AMOY_RPC_URL', 'https://rpc-amoy.example.com')
-    vi.stubEnv('DEPLOYER_PRIVATE_KEY', '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80')
-    vi.stubEnv('LGU_ADMIN_WALLET_ADDRESS', '0x1234567890123456789012345678901234567890')
-    vi.stubEnv('PHPC_TOKEN_ADDRESS', '0xABCDEF0123456789ABCDEF0123456789ABCDEF01')
-    vi.stubEnv('PHPC_SUBSIDY_ADDRESS', '0x9876543210987654321098765432109876543210')
+    vi.stubEnv('STELLAR_HORIZON_URL', 'https://horizon-testnet.stellar.org')
+    vi.stubEnv('STELLAR_NETWORK_PASSPHRASE', 'Test SDF Network ; September 2015')
+    vi.stubEnv('PHPC_ASSET_CODE', 'PHPC')
+    vi.stubEnv('PHPC_ISSUER_PUBLIC_KEY', 'GDVIX3H4TPPZ3ZR5TBYGV2BHVT5KZGIIACXPGTS3WJI7FCLIQMDKXBP6')
+    vi.stubEnv('PHPC_ISSUER_SECRET', 'SBLOCMCBZRMHGNNELJSDHS2UKCDI2KWDVTPQGJLX3IWM34ZTDOID7XCI')
+    vi.stubEnv('PHPC_DISTRIBUTION_SECRET', 'SD2ZBARMFVIIPB75WKI6GOEATW3CWEZ3FCMFRLWPS4H34KLP2WLXVKTR')
+    vi.stubEnv('STELLAR_SPONSOR_SECRET', 'SA5BA56CFEMCKAYOCKWQ7FRQHXG7VDMBLTHLAPUNKBYRY7P3R2XDIWKM')
     vi.stubEnv('CUSTODIAL_KEY_ENCRYPTION_KEY', 'test-key-encryption-key')
     vi.stubEnv('QR_TOKEN_SECRET', 'test-qr-token-secret')
 
@@ -307,34 +315,31 @@ describe('Property 15: registration wallet failure persists no partial state', (
   }, 120000)
 })
 
-// ---------------------------------------------------------------------------
 // Shared env stubbing for the allocation/reconciliation property tests below
 // (Tasks 10.3–10.5). These mirror the exact Polygon Amoy env vars stubbed
 // for the Property 15 suite above, since `allocateTierCredits`/
 // `reconcileAllocation` both call `loadChainConfig(process.env)`.
-// ---------------------------------------------------------------------------
+
 function stubAllocationEnv() {
-  vi.stubEnv('POLYGON_AMOY_RPC_URL', 'https://rpc-amoy.example.com')
-  vi.stubEnv('DEPLOYER_PRIVATE_KEY', '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80')
-  vi.stubEnv('LGU_ADMIN_WALLET_ADDRESS', '0x1234567890123456789012345678901234567890')
-  vi.stubEnv('PHPC_TOKEN_ADDRESS', '0xABCDEF0123456789ABCDEF0123456789ABCDEF01')
-  vi.stubEnv('PHPC_SUBSIDY_ADDRESS', '0x9876543210987654321098765432109876543210')
+  vi.stubEnv('STELLAR_HORIZON_URL', 'https://horizon-testnet.stellar.org')
+  vi.stubEnv('STELLAR_NETWORK_PASSPHRASE', 'Test SDF Network ; September 2015')
+  vi.stubEnv('PHPC_ASSET_CODE', 'PHPC')
+  vi.stubEnv('PHPC_ISSUER_PUBLIC_KEY', 'GDVIX3H4TPPZ3ZR5TBYGV2BHVT5KZGIIACXPGTS3WJI7FCLIQMDKXBP6')
+  vi.stubEnv('PHPC_ISSUER_SECRET', 'SBLOCMCBZRMHGNNELJSDHS2UKCDI2KWDVTPQGJLX3IWM34ZTDOID7XCI')
+  vi.stubEnv('PHPC_DISTRIBUTION_SECRET', 'SD2ZBARMFVIIPB75WKI6GOEATW3CWEZ3FCMFRLWPS4H34KLP2WLXVKTR')
+  vi.stubEnv('STELLAR_SPONSOR_SECRET', 'SA5BA56CFEMCKAYOCKWQ7FRQHXG7VDMBLTHLAPUNKBYRY7P3R2XDIWKM')
   vi.stubEnv('CUSTODIAL_KEY_ENCRYPTION_KEY', 'test-key-encryption-key')
   vi.stubEnv('QR_TOKEN_SECRET', 'test-qr-token-secret')
 }
 
-/**
- * Property 6: Tier allocation credits the correct amount and conserves
- * total supply.
- *
- * Validates: Requirements 4.1, 4.2, 4.3, 4.5
- *
- * Feature: polygon-amoy-phpc-migration, Property 6: for either tier, a
- * successful allocation increases the beneficiary's recorded balance by
- * exactly the tier amount (5000 for Tier 1, 3500 for Tier 2) and persists
- * exactly one `allocations` row recording that same tier/amount — the
- * allocation's Transaction_Record per the design's data model.
- */
+// Property 6: Tier allocation credits the correct amount and conserves
+// total supply.
+// Validates: Requirements 4.1, 4.2, 4.3, 4.5
+// Feature: polygon-amoy-phpc-migration, Property 6: for either tier, a
+// successful allocation increases the beneficiary's recorded balance by
+// exactly the tier amount (5000 for Tier 1, 3500 for Tier 2) and persists
+// exactly one `allocations` row recording that same tier/amount — the
+// allocation's Transaction_Record per the design's data model.
 describe('Property 6: tier allocation credits the correct amount and conserves total supply (Requirements 4.1, 4.2, 4.3, 4.5)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -352,13 +357,11 @@ describe('Property 6: tier allocation credits the correct amount and conserves t
         resetMockDbState()
 
         const tierAmount = tier === 1 ? 5000 : 3500
-        const treasuryBalanceWei = 100_000n * 10n ** 18n // ample treasury
 
-        ;(BlockchainClient.create as any).mockResolvedValue(
+        ;(StellarClient.create as any).mockResolvedValue(
           ok({
-            getTreasuryBalance: vi.fn().mockResolvedValue(ok(treasuryBalanceWei)),
-            allocateCredits: vi.fn().mockResolvedValue(ok('0xallochash')),
-            waitForConfirmation: vi.fn().mockResolvedValue(ok({})),
+            hasAuthorizedTrustline: vi.fn().mockResolvedValue(ok(true)),
+            allocateSubsidy: vi.fn().mockResolvedValue(ok({ hash: 'stellarhash123', ledger: 42 })),
           }),
         )
 
@@ -373,6 +376,12 @@ describe('Property 6: tier allocation credits the correct amount and conserves t
           child_age_months: tier === 1 ? 0 : 40,
         }
         mockDbState.beneficiaries.push(beneficiary)
+
+        // Provide a provisioned wallet for the trustline check
+        mockDbState.beneficiary_wallets.push({
+          beneficiary_id: beneficiaryId,
+          address: 'GBZFCMQFAKQTAC7THZMRGVBM5QXRDRFEJXT6XLBRIAAGIQCH5WGE2PW2',
+        })
 
         const service = new BeneficiaryService(mockSupabaseClient)
         const result = await service.allocateTierCredits(beneficiaryId)
@@ -390,25 +399,25 @@ describe('Property 6: tier allocation credits the correct amount and conserves t
         expect(mockDbState.allocations.length).toBe(1)
         expect(mockDbState.allocations[0].tier).toBe(tier)
         expect(mockDbState.allocations[0].amount_phpc).toBe(tierAmount)
+        // F7: the ledger sequence returned by allocateSubsidy is actually
+        // persisted alongside the transaction hash, not silently discarded.
+        expect(mockDbState.allocations[0].ledger_sequence).toBe(42)
+        expect(mockDbState.allocations[0].onchain_tx_hash).toBe('stellarhash123')
       }),
       { numRuns: 20 },
     )
   })
 })
 
-/**
- * Property 7: Rejected allocations leave balances unchanged.
- *
- * Validates: Requirements 4.4, 4.7, 4.8, 4.9
- *
- * Feature: polygon-amoy-phpc-migration, Property 7: for each reachable
- * rejection cause (insufficient treasury, duplicate allocation, on-chain
- * failure), the beneficiary's recorded balance stays at 0 and no new
- * `allocations` row is inserted. Requirement 4.9's invalid-tier rejection
- * path is not exercised here since `computeTier` only ever returns 1 | 2 by
- * its type signature — that branch is a defensive/unreachable guard, as
- * noted in `allocateTierCredits`'s own code comment.
- */
+// Property 7: Rejected allocations leave balances unchanged.
+// Validates: Requirements 4.4, 4.7, 4.8, 4.9
+// Feature: polygon-amoy-phpc-migration, Property 7: for each reachable
+// rejection cause (insufficient treasury, duplicate allocation, on-chain
+// failure), the beneficiary's recorded balance stays at 0 and no new
+// `allocations` row is inserted. Requirement 4.9's invalid-tier rejection
+// path is not exercised here since `computeTier` only ever returns 1 | 2 by
+// its type signature — that branch is a defensive/unreachable guard, as
+// noted in `allocateTierCredits`'s own code comment.
 describe('Property 7: rejected allocations leave balances unchanged (Requirements 4.4, 4.7, 4.8, 4.9)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -420,10 +429,10 @@ describe('Property 7: rejected allocations leave balances unchanged (Requirement
     vi.unstubAllEnvs()
   })
 
-  it('leaves the beneficiary balance at 0 and inserts no new allocation row when rejected for insufficient treasury, duplicate allocation, or on-chain failure', async () => {
+  it('leaves the beneficiary balance at 0 and inserts no new allocation row when rejected for missing trustline, duplicate allocation, or on-chain failure', async () => {
     await fc.assert(
       fc.asyncProperty(
-        fc.constantFrom('insufficient_treasury', 'duplicate_allocation', 'onchain_failure'),
+        fc.constantFrom('missing_trustline', 'duplicate_allocation', 'onchain_failure'),
         fc.uuid(),
         async (rejectionCause, beneficiaryId) => {
           resetMockDbState()
@@ -436,32 +445,36 @@ describe('Property 7: rejected allocations leave balances unchanged (Requirement
           }
           mockDbState.beneficiaries.push(beneficiary)
 
+          // Provide a wallet row so the wallet lookup succeeds
+          mockDbState.beneficiary_wallets.push({
+            beneficiary_id: beneficiaryId,
+            address: 'GBZFCMQFAKQTAC7THZMRGVBM5QXRDRFEJXT6XLBRIAAGIQCH5WGE2PW2',
+          })
+
           if (rejectionCause === 'duplicate_allocation') {
             mockDbState.allocations.push({
               id: 'existing-alloc',
               beneficiary_id: beneficiaryId,
               tier: 1,
               amount_phpc: 5000,
-              onchain_tx_hash: '0xold',
+              onchain_tx_hash: 'stellarhash',
               reconciled: false,
               allocated_at: new Date().toISOString(),
             })
           }
 
-          const treasuryBalanceWei =
-            rejectionCause === 'insufficient_treasury' ? 0n : 100_000n * 10n ** 18n
-
-          ;(BlockchainClient.create as any).mockResolvedValue(
+          ;(StellarClient.create as any).mockResolvedValue(
             ok({
-              getTreasuryBalance: vi.fn().mockResolvedValue(ok(treasuryBalanceWei)),
-              allocateCredits: vi
+              hasAuthorizedTrustline: vi.fn().mockResolvedValue(
+                rejectionCause === 'missing_trustline' ? ok(false) : ok(true),
+              ),
+              allocateSubsidy: vi
                 .fn()
                 .mockResolvedValue(
                   rejectionCause === 'onchain_failure'
                     ? err(new OnchainError('simulated failure', 0))
-                    : ok('0xhash'),
+                    : ok({ hash: 'stellarhash', ledger: 42 }),
                 ),
-              waitForConfirmation: vi.fn().mockResolvedValue(ok({})),
             }),
           )
 
@@ -485,16 +498,12 @@ describe('Property 7: rejected allocations leave balances unchanged (Requirement
   })
 })
 
-/**
- * Property 8: Reconciliation mismatch flags the allocation.
- *
- * Validates: Requirement 4.6
- *
- * Feature: polygon-amoy-phpc-migration, Property 8: when the beneficiary's
- * recorded `credit_balance` diverges from the recorded allocation's
- * `amount_phpc`, `reconcileAllocation` returns an identifying error and
- * leaves (or sets) the allocation's `reconciled` flag to `false`.
- */
+// Property 8: Reconciliation mismatch flags the allocation.
+// Validates: Requirement 4.6
+// Feature: polygon-amoy-phpc-migration, Property 8: when the beneficiary's
+// recorded `credit_balance` diverges from the recorded allocation's
+// `amount_phpc`, `reconcileAllocation` returns an identifying error and
+// leaves (or sets) the allocation's `reconciled` flag to `false`.
 describe('Property 8: reconciliation mismatch flags the allocation (Requirement 4.6)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -531,7 +540,7 @@ describe('Property 8: reconciliation mismatch flags the allocation (Requirement 
             allocated_at: new Date().toISOString(),
           })
 
-          ;(BlockchainClient.create as any).mockResolvedValue(
+          ;(StellarClient.create as any).mockResolvedValue(
             ok({
               // On-chain re-confirmation succeeds; the mismatch under test
               // is purely the recorded-balance-vs-amount divergence.

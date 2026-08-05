@@ -9,10 +9,8 @@ export class PricingValidationService {
     this.marketPricesService = new MarketPricesService()
   }
 
-  /**
-   * Validates non-branded (wet market/palengke) products using Gemini.
-   * Incorporates the Fail Fast principle: rejects products not found in official DA-AMAS records.
-   */
+  // Validates non-branded (wet market/palengke) products using Gemini.
+// Incorporates the Fail Fast principle: rejects products not found in official DA-AMAS records.
   async validateNonBranded(
     imageBase64: string,
     productName: string,

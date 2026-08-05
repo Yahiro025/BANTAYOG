@@ -10,9 +10,7 @@ export class AppError extends Error {
 export class MarketPricesService {
   constructor() {}
 
-  /**
-   * Mock ingestion is no longer needed since we use a static data file.
-   */
+  // Mock ingestion is no longer needed since we use a static data file.
   async ingestMockData(): Promise<Result<boolean, AppError>> {
     try {
       // No-op for static data MVP
@@ -23,9 +21,7 @@ export class MarketPricesService {
     }
   }
 
-  /**
-   * Search for a market price by product name (using static data for MVP)
-   */
+  // Search for a market price by product name (using static data for MVP)
   async searchMarketPrice(productName: string): Promise<Result<MarketPriceData | null, AppError>> {
     try {
       if (!productName || productName.trim() === '') {

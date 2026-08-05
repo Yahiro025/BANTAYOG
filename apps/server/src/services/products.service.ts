@@ -33,10 +33,8 @@ export class ProductsService {
     this.productRepo = new ProductRepository(db)
   }
 
-  /**
-   * Validates a product name against the catalog.
-   * Performs case-insensitive matches using fuzzy/ILIKE query logic.
-   */
+  // Validates a product name against the catalog.
+// Performs case-insensitive matches using fuzzy/ILIKE query logic.
   async validateProduct(name: string): Promise<AppResult<ValidationResult>> {
     if (!name || name.trim() === '') {
       return ok({ matched: false, reason: 'Empty product name provided' })
@@ -68,10 +66,8 @@ export class ProductsService {
     }
   }
 
-  /**
-   * Validates a product by name. If it doesn't exist, researches it via Gemini,
-   * creates a draft row with category='Draft' and ±₱10 price range, and returns it.
-   */
+  // Validates a product by name. If it doesn't exist, researches it via Gemini,
+// creates a draft row with category='Draft' and ±₱10 price range, and returns it.
   async validateOrCreateProduct(
     name: string,
     imageUrl?: string,

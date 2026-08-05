@@ -1,33 +1,26 @@
-/**
- * Value-based secret redaction.
- *
- * Complements pino's key-name-based `redact.paths` (see `./logger.ts`),
- * which only redacts fields whose *key* matches a known-sensitive name
- * (e.g. `pin`, `privateKey`). This module instead scans for known-sensitive
- * *values* (e.g. the literal deployer private key, a beneficiary's
- * decrypted key, the QR signing secret, the key-encryption key) wherever
- * they appear — including nested objects, arrays, or embedded inside an
- * unrelated string such as an error message — and replaces every exact
- * occurrence with a fixed redaction marker.
- *
- * Requirements: 6.5, 10.4
- */
+// Value-based secret redaction.
+// Complements pino's key-name-based `redact.paths` (see `./logger.ts`),
+// which only redacts fields whose *key* matches a known-sensitive name
+// (e.g. `pin`, `privateKey`). This module instead scans for known-sensitive
+// *values* (e.g. the literal deployer private key, a beneficiary's
+// decrypted key, the QR signing secret, the key-encryption key) wherever
+// they appear — including nested objects, arrays, or embedded inside an
+// unrelated string such as an error message — and replaces every exact
+// occurrence with a fixed redaction marker.
+// Requirements: 6.5, 10.4
 
 const REDACTION_MARKER = '[REDACTED]'
 
-/** Escapes regex metacharacters so a secret can be safely used as a pattern. */
+// Escapes regex metacharacters so a secret can be safely used as a pattern.
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-/**
- * Scans `value` (recursively, through objects/arrays/strings) and replaces
- * any exact occurrence of a string in `secrets` with a fixed redaction
- * marker. Returns a deep-cloned, redacted copy; does not mutate `value`.
- *
- * Empty/falsy secret strings are filtered out first — redacting on an empty
- * string would corrupt every string in the output.
- */
+// Scans `value` (recursively, through objects/arrays/strings) and replaces
+// any exact occurrence of a string in `secrets` with a fixed redaction
+// marker. Returns a deep-cloned, redacted copy; does not mutate `value`.
+// Empty/falsy secret strings are filtered out first — redacting on an empty
+// string would corrupt every string in the output.
 export function redactSecrets<T>(value: T, secrets: readonly string[]): T {
   const nonEmptySecrets = secrets.filter((s): s is string => Boolean(s))
 
@@ -65,7 +58,7 @@ function redactValue(value: unknown, pattern: RegExp): unknown {
   return value
 }
 
-/** Deep-clones `value` without applying any redaction (no secrets to redact). */
+// Deep-clones `value` without applying any redaction (no secrets to redact).
 function cloneWithout<T>(value: T): T {
   if (Array.isArray(value)) {
     return value.map((item) => cloneWithout(item)) as unknown as T
@@ -80,17 +73,27 @@ function cloneWithout<T>(value: T): T {
   return value
 }
 
-/**
- * Returns the list of "known secret values" currently configured, sourced
- * from a loaded `ChainConfig` (deployer key, key-encryption key, QR token
- * secret) plus any additional ad-hoc secrets (e.g. a beneficiary's
- * decrypted private key during a signing operation) passed in explicitly.
- */
+// Returns the list of "known secret values" currently configured, sourced
+// from a loaded `ChainConfig` (issuer secret, distribution secret, sponsor
+// secret, key-encryption key, QR token secret) plus any additional ad-hoc
+// secrets (e.g. a beneficiary's decrypted private key during a signing
+// operation) passed in explicitly.
 export function collectConfiguredSecrets(
-  config: { deployerKey: string; keyEncryptionKey: string; qrTokenSecret: string },
+  config: {
+    issuerSecret: string
+    distributionSecret: string
+    sponsorSecret: string
+    keyEncryptionKey: string
+    qrTokenSecret: string
+  },
   ...extra: string[]
 ): string[] {
-  return [config.deployerKey, config.keyEncryptionKey, config.qrTokenSecret, ...extra].filter(
-    Boolean,
-  )
+  return [
+    config.issuerSecret,
+    config.distributionSecret,
+    config.sponsorSecret,
+    config.keyEncryptionKey,
+    config.qrTokenSecret,
+    ...extra,
+  ].filter(Boolean)
 }

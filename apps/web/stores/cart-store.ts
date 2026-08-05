@@ -26,7 +26,7 @@ interface CartState {
   clearCart: () => void;
 }
 
-/** Zod schema used to validate persisted cart data on rehydration */
+// Zod schema used to validate persisted cart data on rehydration
 const CartItemSchema = z.object({
   id: z.string(),
   name: z.string(),

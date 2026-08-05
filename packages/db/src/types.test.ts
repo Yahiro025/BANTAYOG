@@ -5,6 +5,8 @@ import type {
   BeneficiaryRow,
   TransactionRow,
   OutboxRow,
+  AllocationRow,
+  MerchantWalletRow,
   MerchantStatus,
   EligibilityStatus,
   TransactionStatus,
@@ -104,13 +106,55 @@ describe('Row types compile-check', () => {
       item_list_jsonb: [],
       total_credit_deducted: 0,
       stablecoin_amount_wei: '0',
+      asset_amount_stroops: null,
       onchain_tx_hash: null,
+      ledger_sequence: null,
       idempotency_key: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
       status: 'PENDING_CHAIN',
       created_at: '2026-06-29T00:00:00Z',
       confirmed_at: null,
     }
     expect(row.id).toBeDefined()
+  })
+
+  it('AllocationRow has required fields including ledger_sequence (migration 00012, F7)', () => {
+    const row: AllocationRow = {
+      id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+      beneficiary_id: 'a47ac10b-58cc-4372-a567-0e02b2c3d480',
+      tier: 1,
+      amount_phpc: 5000,
+      onchain_tx_hash: 'stellarhash123',
+      ledger_sequence: 42,
+      reconciled: false,
+      allocated_at: '2026-06-29T00:00:00Z',
+    }
+    expect(row.ledger_sequence).toBe(42)
+  })
+
+  it('AllocationRow allows ledger_sequence to be null (legacy rows predating migration 00012)', () => {
+    const row: AllocationRow = {
+      id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+      beneficiary_id: 'a47ac10b-58cc-4372-a567-0e02b2c3d480',
+      tier: 2,
+      amount_phpc: 3500,
+      onchain_tx_hash: null,
+      ledger_sequence: null,
+      reconciled: false,
+      allocated_at: '2026-06-29T00:00:00Z',
+    }
+    expect(row.ledger_sequence).toBeNull()
+  })
+
+  it('MerchantWalletRow has required fields (migration 00011)', () => {
+    const row: MerchantWalletRow = {
+      merchant_id: 'b47ac10b-58cc-4372-a567-0e02b2c3d481',
+      address: 'GANQ4X5FDIREJPH6LR5YCC5ODMSACA5T6Q54F7EF6BGO55M7R6AQIP52',
+      enc_ciphertext: 'ciphertext',
+      enc_iv: 'iv',
+      enc_auth_tag: 'authtag',
+      created_at: '2026-06-29T00:00:00Z',
+    }
+    expect(row.address).toMatch(/^[GC][A-Z2-7]{55}$/)
   })
 
   it('OutboxRow has required fields', () => {

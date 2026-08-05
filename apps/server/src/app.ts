@@ -1,15 +1,11 @@
-/**
- * Hono app factory + middleware stack.
- *
- * Middleware order (per BANTAYOG_PROJECT_PLAN.md §9):
- *   1. CORS     — permissive for dev, locked for prod
- *   2. Logger   — structured pino request logging
- *   3. Auth     — verify Supabase JWT (skip for /health and public routes)
- *   4. RBAC     — role-based access control (applied per-route-group)
- *   5. RateLimit — Upstash sliding window (applied per-route-group)
- *
- * BE1 owns this file.
- */
+// Hono app factory + middleware stack.
+// Middleware order (per BANTAYOG_PROJECT_PLAN.md §9):
+// 1. CORS     — permissive for dev, locked for prod
+// 2. Logger   — structured pino request logging
+// 3. Auth     — verify Supabase JWT (skip for /health and public routes)
+// 4. RBAC     — role-based access control (applied per-route-group)
+// 5. RateLimit — Upstash sliding window (applied per-route-group)
+// BE1 owns this file.
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { requestLogger } from './middleware/request-logger.js'
@@ -18,9 +14,7 @@ import { requireRole } from './middleware/rbac.js'
 import { rateLimit } from './middleware/rate-limit.js'
 import type { Env } from './types/env.js'
 
-// ---------------------------------------------------------------------------
 // App creation
-// ---------------------------------------------------------------------------
 
 const app = new Hono<{ Bindings: Env }>()
 const defaultCorsOrigin = 'http://localhost:3000'
@@ -56,14 +50,11 @@ app.use('/api/vision/classify', rateLimit('gemini', 10, 60))
 app.use('/api/vision/analyze-nutrition', rateLimit('gemini', 10, 60))
 
 // --- Health check (public, no auth required) ---
-/**
- * GET /health
- *
- * Returns 200 with a simple status payload. Used by:
- * - Vercel deployment health checks
- * - P1 DoD: `curl localhost:3001/health` returns 200
- * - Docker/load-balancer liveness probes
- */
+// GET /health
+// Returns 200 with a simple status payload. Used by:
+// - Vercel deployment health checks
+// - P1 DoD: `curl localhost:3001/health` returns 200
+// - Docker/load-balancer liveness probes
 app.get('/health', (c) => {
   return c.json({
     status: 'ok',
@@ -139,7 +130,6 @@ app.route('/api/transactions', transactionRoutes)
 // Cron routes (auth-bypass; uses custom Bearer CRON_SECRET auth internally)
 import cronRoutes from './routes/cron/index.js'
 app.route('/api/cron', cronRoutes)
-
 
 // --- 404 fallback ---
 app.notFound((c) => {

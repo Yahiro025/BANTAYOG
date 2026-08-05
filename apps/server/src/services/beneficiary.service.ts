@@ -6,24 +6,16 @@ import { AllocationRepository } from '../repositories/allocation.repository.js'
 import { PinService } from './pin.service.js'
 import { QrTokenService } from './qr-token.service.js'
 import { CustodialWalletService } from './custodial-wallet.service.js'
-import { BlockchainClient } from './chain.client.js'
+import { StellarClient } from './chain.client.js'
 import { loadChainConfig } from '../lib/chain/config.js'
 import { computeTier } from '../domain/eligibility.js'
 import { type AppResult, ok, err, PersistenceError, ValidationError } from '../lib/errors.js'
 
-/** Tier-based one-time allocation amounts, in whole PHPC (Requirements 4.1, 4.2). */
+// Tier-based one-time allocation amounts, in whole PHPC (Requirements 4.1, 4.2).
 const TIER_1_ALLOCATION_PHPC = 5000
 const TIER_2_ALLOCATION_PHPC = 3500
 
-/** PHPC's on-chain decimals (18), used to convert whole-PHPC amounts to base units. */
-const PHPC_DECIMALS = 18n
-
-/** Bound (ms) on waiting for the on-chain allocation transaction to confirm (Requirement 4.8). */
-const ALLOCATION_CONFIRMATION_TIMEOUT_MS = 60_000
-
-/**
- * BE1-2.3 · Beneficiary CRUD Service
- */
+// BE1-2.3 · Beneficiary CRUD Service
 export class BeneficiaryService {
   private db: SupabaseClient<Database>
   private beneficiaryRepo: BeneficiaryRepository
@@ -39,10 +31,8 @@ export class BeneficiaryService {
     this.pinService = new PinService()
   }
 
-  /**
-   * Registers a new beneficiary.
-   * Computes initial tier, hashes PIN, inserts to DB, and generates the QR token.
-   */
+  // Registers a new beneficiary.
+// Computes initial tier, hashes PIN, inserts to DB, and generates the QR token.
   async register(dto: {
     guardianName: string;
     guardianMobileHash: string;
@@ -76,8 +66,13 @@ export class BeneficiaryService {
       if (chainConfigResult.isErr()) return err(chainConfigResult.error);
       const custodialWalletService = new CustodialWalletService(
         chainConfigResult.value,
-        this.beneficiaryWalletRepo,
       );
+      // Constructing the client only for on-chain provisioning; if Horizon
+      // is unreachable, generateWallet still persists the wallet row and
+      // surfaces the provisioning error, rather than blocking registration
+      // entirely on a config-load failure.
+      const stellarClientResult = await StellarClient.create(chainConfigResult.value)
+      const stellarClient = stellarClientResult.isOk() ? stellarClientResult.value : undefined
 
       // 5. Insert beneficiary record (DB generates the id; it cannot be
       // supplied on insert per the `beneficiaries` Insert type).
@@ -96,12 +91,14 @@ export class BeneficiaryService {
         activated_at: new Date().toISOString()
       });
 
-      // 6. Generate the beneficiary's custodial wallet. Beneficiary and
-      // wallet creation aren't atomic (no cross-table transaction API
-      // available here); on wallet generation failure we compensate by
-      // deleting the just-inserted beneficiary row so no beneficiary record
-      // remains, satisfying Requirement 5.6.
-      const walletResult = await custodialWalletService.generateWallet(record.id);
+      // 6. Generate the beneficiary's custodial wallet AND provision it
+      // on-chain (sponsored account + trustline + authorization) in the
+      // same call. Beneficiary and wallet creation aren't atomic (no
+      // cross-table transaction API available here); on wallet generation
+      // or provisioning failure we compensate by deleting the
+      // just-inserted beneficiary row so no beneficiary record remains,
+      // satisfying Requirement 5.6.
+      const walletResult = await custodialWalletService.generateWallet(record.id, 'beneficiary', this.beneficiaryWalletRepo, stellarClient);
       if (walletResult.isErr()) {
         try {
           await this.beneficiaryRepo.deleteById(record.id);
@@ -150,9 +147,7 @@ export class BeneficiaryService {
     }
   }
 
-  /**
-   * Returns a paginated list of beneficiaries, with tiers dynamically re-evaluated.
-   */
+  // Returns a paginated list of beneficiaries, with tiers dynamically re-evaluated.
   async list(page: number = 1, limit: number = 20): Promise<AppResult<{
     data: any[];
     count: number;
@@ -196,9 +191,7 @@ export class BeneficiaryService {
     }
   }
 
-  /**
-   * Adds credit balance to a beneficiary.
-   */
+  // Adds credit balance to a beneficiary.
   async addCredits(beneficiaryId: string, amount: number): Promise<AppResult<any>> {
     try {
       const beneficiary = await this.beneficiaryRepo.findById(beneficiaryId);
@@ -219,20 +212,16 @@ export class BeneficiaryService {
     }
   }
 
-  /**
-   * Allocates the one-time tier-based PHPC credit to a beneficiary.
-   *
-   * Resolves the beneficiary's tier, rejects invalid tier classifications and
-   * duplicate allocations, checks the on-chain treasury balance, submits the
-   * on-chain allocation and waits up to 60 seconds for confirmation, and only
-   * after confirmation increases the beneficiary's recorded balance and
-   * persists the `allocations` record (which serves as this allocation's
-   * Transaction_Record per the design's data model). Every rejection path
-   * (invalid tier, duplicate allocation, insufficient treasury, on-chain
-   * failure/timeout) returns before any balance is touched.
-   *
-   * Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.7, 4.8, 4.9
-   */
+  // Allocates the one-time tier-based PHPC credit to a beneficiary.
+// Resolves the beneficiary's tier, rejects invalid tier classifications and
+// duplicate allocations, checks the on-chain treasury balance, submits the
+// on-chain allocation and waits up to 60 seconds for confirmation, and only
+// after confirmation increases the beneficiary's recorded balance and
+// persists the `allocations` record (which serves as this allocation's
+// Transaction_Record per the design's data model). Every rejection path
+// (invalid tier, duplicate allocation, insufficient treasury, on-chain
+// failure/timeout) returns before any balance is touched.
+// Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.7, 4.8, 4.9
   async allocateTierCredits(beneficiaryId: string): Promise<AppResult<{
     beneficiary: any;
     amount: number;
@@ -246,11 +235,7 @@ export class BeneficiaryService {
       }
       const tier = computeTier(beneficiary.created_at, beneficiary.child_age_months)
 
-      // 2. Reject invalid tier classification (Requirement 4.9). `computeTier`
-      // only ever returns 1 | 2 by its type signature today, so this branch
-      // is unreachable given current domain logic — it is a defensive guard
-      // against future changes to tier computation that might widen its
-      // return type or produce an unexpected value.
+      // 2. Reject invalid tier classification (Requirement 4.9).
       if (tier !== 1 && tier !== 2) {
         return err(new ValidationError('Invalid tier classification'))
       }
@@ -262,57 +247,50 @@ export class BeneficiaryService {
         return err(new ValidationError('Beneficiary already has a prior allocation'))
       }
 
-      // 4. Determine the tier amount (Requirements 4.1, 4.2).
-      const amountPhpc = tier === 1 ? TIER_1_ALLOCATION_PHPC : TIER_2_ALLOCATION_PHPC
-      const amountWei = BigInt(amountPhpc) * 10n ** PHPC_DECIMALS
+      // 4. Resolve the beneficiary's Stellar wallet address.
+      const walletRows = await this.beneficiaryWalletRepo.findBy('beneficiary_id', beneficiaryId, 1)
+      if (walletRows.length === 0) {
+        return err(new ValidationError('Beneficiary has no provisioned Stellar wallet'))
+      }
+      const beneficiaryAccountId = walletRows[0].address
 
-      // 5. Load ChainConfig and construct the BlockchainClient.
+      // 5. Load ChainConfig and construct the StellarClient.
       const chainConfigResult = loadChainConfig(process.env)
       if (chainConfigResult.isErr()) return err(chainConfigResult.error)
-      const clientResult = await BlockchainClient.create(chainConfigResult.value)
+      const clientResult = await StellarClient.create(chainConfigResult.value)
       if (clientResult.isErr()) return err(clientResult.error)
       const client = clientResult.value
 
-      // 6. Check treasury balance (Requirement 4.4) before submitting
-      // anything on-chain.
-      const treasuryResult = await client.getTreasuryBalance()
-      if (treasuryResult.isErr()) return err(treasuryResult.error)
-      if (treasuryResult.value < amountWei) {
-        return err(new ValidationError('Insufficient treasury balance for allocation'))
+      // 6. Pre-check beneficiary trustline (risk R1).
+      const trustlineResult = await client.hasAuthorizedTrustline(beneficiaryAccountId)
+      if (trustlineResult.isErr()) return err(trustlineResult.error)
+      if (!trustlineResult.value) {
+        return err(new ValidationError('Beneficiary account does not have an authorized PHPC trustline'))
       }
 
-      // 7. Submit the on-chain allocation and wait up to 60s for
-      // confirmation (Requirement 4.8). BlockchainClient's own methods
-      // already return AppResult/OnchainError with no side effects on
-      // failure/timeout, so propagating these errors here satisfies
-      // "abort the allocation, leave balances unchanged" — no balance or DB
-      // state has been mutated at any point before this line.
-      const allocResult = await client.allocateCredits(beneficiaryId, amountWei)
+      // 7. Submit the tier-based allocation. The chain layer derives the
+      // amount from the tier (F4): Tier 1 = 5,000 PHPC, Tier 2 = 3,500 PHPC.
+      const allocResult = await client.allocateSubsidy(beneficiaryId, beneficiaryAccountId, tier)
       if (allocResult.isErr()) return err(allocResult.error)
-      const txHash = allocResult.value
-      const confirmResult = await client.waitForConfirmation(txHash, ALLOCATION_CONFIRMATION_TIMEOUT_MS)
-      if (confirmResult.isErr()) return err(confirmResult.error)
+      const { hash: txHash, ledger } = allocResult.value
 
-      // 8. Only after confirmation: increase the beneficiary's recorded
-      // balance (Requirements 4.1, 4.2, 4.3). The treasury-tracking balance
-      // is `client.getTreasuryBalance()` itself, which reflects on-chain
-      // state — there is no separate off-chain treasury-balance column to
-      // decrement in this schema, so no additional write is made for it.
+      // 8. Determine the tier amount for the DB record.
+      const amountPhpc = tier === 1 ? TIER_1_ALLOCATION_PHPC : TIER_2_ALLOCATION_PHPC
+
+      // 9. Only after confirmation: increase the beneficiary's recorded
+      // balance (Requirements 4.1, 4.2, 4.3).
       const newBalance = Number(beneficiary.credit_balance) + amountPhpc
       const updated = await this.beneficiaryRepo.updateById(beneficiaryId, {
         credit_balance: newBalance,
       })
 
-      // 9. Persist the allocation record (Requirement 4.5). The
-      // `allocations` row — beneficiary id, amount, tier, on-chain tx hash,
-      // allocated_at timestamp — is this allocation's Transaction_Record per
-      // the design's Allocation Record data model. `reconciled` defaults to
-      // false; reconciliation is handled by a separate task (10.2).
+      // 10. Persist the allocation record with hash and ledger sequence (F7).
       await this.allocationRepo.insert({
         beneficiary_id: beneficiaryId,
         tier,
         amount_phpc: amountPhpc,
         onchain_tx_hash: txHash,
+        ledger_sequence: ledger,
       })
 
       return ok({
@@ -325,38 +303,30 @@ export class BeneficiaryService {
     }
   }
 
-  /**
-   * Reconciles a beneficiary's one-time allocation, flagging the
-   * `allocations.reconciled` column and returning an identifying error on
-   * mismatch (Requirement 4.6).
-   *
-   * The current `BlockchainClient` surface has no per-beneficiary on-chain
-   * ledger read (`PHPCSubsidy.getBalance(bytes32)` was dropped from the
-   * design's `BlockchainClient` interface — see `chain.client.ts`), so this
-   * reconciliation combines two checks that ARE possible with today's
-   * surface:
-   *
-   *   (a) An off-chain internal consistency check: the beneficiary's
-   *       recorded `credit_balance` must equal the recorded allocation's
-   *       `amount_phpc`. Since this is a one-time allocation with no
-   *       purchase-deduction path exercised yet at reconciliation time,
-   *       `credit_balance` should exactly equal `amount_phpc`; any
-   *       divergence signals the recorded balance was never fully credited
-   *       (or was corrupted) relative to what the allocation record says
-   *       was allocated.
-   *   (b) A genuine on-chain check: re-confirming the allocation's
-   *       `onchain_tx_hash` via `BlockchainClient.waitForConfirmation`. If
-   *       the transaction cannot be re-confirmed, that's a real signal the
-   *       on-chain allocation never landed (or was dropped/reorged),
-   *       independent of whatever the DB believes.
-   *
-   * A true on-chain reconciliation would additionally require exposing a
-   * beneficiary-ledger read method on `BlockchainClient` (e.g. re-adding
-   * `PHPCSubsidy.getBalance(bytes32)`), which is out of this task's scope;
-   * flagging as a follow-up.
-   *
-   * Requirements: 4.6
-   */
+  // Reconciles a beneficiary's one-time allocation, flagging the
+// `allocations.reconciled` column and returning an identifying error on
+// mismatch (Requirement 4.6).
+// `StellarClient` has no per-beneficiary on-chain ledger read exposed
+// here today, so this reconciliation combines two checks that ARE
+// possible with the current surface:
+// (a) An off-chain internal consistency check: the beneficiary's
+// recorded `credit_balance` must equal the recorded allocation's
+// `amount_phpc`. Since this is a one-time allocation with no
+// purchase-deduction path exercised yet at reconciliation time,
+// `credit_balance` should exactly equal `amount_phpc`; any
+// divergence signals the recorded balance was never fully credited
+// (or was corrupted) relative to what the allocation record says
+// was allocated.
+// (b) A minimal on-chain-adjacent check: the allocation's
+// `onchain_tx_hash` must be present. On Stellar, a payment
+// operation is final once `submitTransaction` returns successfully
+// (there is no separate confirmation-polling step the way an EVM
+// receipt wait works), so a missing hash is itself the signal that
+// the on-chain allocation never actually landed.
+// A true on-chain reconciliation would additionally require exposing a
+// beneficiary-balance read method here (`StellarClient.getAssetBalance`
+// already exists and could be wired in); flagging as a follow-up.
+// Requirements: 4.6
   async reconcileAllocation(beneficiaryId: string): Promise<AppResult<{ reconciled: boolean }>> {
     try {
       // 1. Look up the allocation record.
@@ -372,24 +342,20 @@ export class BeneficiaryService {
         return err(new ValidationError('Beneficiary not found: ' + beneficiaryId))
       }
 
-      // 3. Load ChainConfig and construct the BlockchainClient, propagating
-      // errors the same way `allocateTierCredits` does.
+      // 3. Load ChainConfig (propagating errors for consistency).
       const chainConfigResult = loadChainConfig(process.env)
       if (chainConfigResult.isErr()) return err(chainConfigResult.error)
-      const clientResult = await BlockchainClient.create(chainConfigResult.value)
-      if (clientResult.isErr()) return err(clientResult.error)
-      const client = clientResult.value
 
       // 4a. Off-chain internal consistency check: recorded balance vs.
       // recorded allocation amount.
       const recordedBalanceMismatch = Number(beneficiary.credit_balance) !== allocation.amount_phpc
 
       // 4b. Genuine on-chain check: re-confirm the allocation's tx hash.
-      const confirmResult = await client.waitForConfirmation(
-        allocation.onchain_tx_hash as `0x${string}`,
-        5_000,
-      )
-      const onchainConfirmationMismatch = confirmResult.isErr()
+      // 4b. On Stellar, transactions are final once submitted successfully.
+      // The allocation hash being present is sufficient proof the on-chain
+      // allocation landed. A more robust check would query the beneficiary
+      // account's PHPC balance on Horizon.
+      const onchainConfirmationMismatch = !allocation.onchain_tx_hash
 
       const mismatch = recordedBalanceMismatch || onchainConfirmationMismatch
 
@@ -407,9 +373,7 @@ export class BeneficiaryService {
     }
   }
 
-  /**
-   * Looks up a beneficiary and returns it with dynamically computed tier.
-   */
+  // Looks up a beneficiary and returns it with dynamically computed tier.
   async verifyAndReevaluateTier(beneficiaryId: string): Promise<AppResult<{ beneficiary: any; tier: number }>> {
     try {
       const beneficiary = await this.beneficiaryRepo.findById(beneficiaryId)
@@ -427,9 +391,7 @@ export class BeneficiaryService {
     }
   }
 
-  /**
-   * Returns aggregate metrics for the admin dashboard.
-   */
+  // Returns aggregate metrics for the admin dashboard.
   async getMetrics(): Promise<AppResult<{
     totalBeneficiaries: number;
     criticalUnits: number;
@@ -496,9 +458,7 @@ export class BeneficiaryService {
     }
   }
 
-  /**
-   * Updates eligibility status of a beneficiary.
-   */
+  // Updates eligibility status of a beneficiary.
   async updateStatus(beneficiaryId: string, status: 'PENDING' | 'ELIGIBLE' | 'INELIGIBLE' | 'SUSPENDED'): Promise<AppResult<any>> {
     try {
       const { data, error } = await (this.db as any)

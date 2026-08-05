@@ -3,9 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { authFetch } from "@/lib/api";
 
-// ---------------------------------------------------------------------------
 // Transfer Modal — matches merchantPages/14.png
-// ---------------------------------------------------------------------------
 
 interface TransferModalProps {
   open: boolean;

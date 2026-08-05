@@ -1,14 +1,11 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-vars */
+// eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-vars
 // @ts-nocheck
 // ponytail: dead code kept for tests — server owns canonical impl
-/**
- * Merchant Service
- *
- * CRUD operations on the merchants table.
- * - register: creates Supabase Auth user, inserts merchant record, registers on-chain
- * - list: returns paginated merchant list
- * - approve: updates status to APPROVED, calls MerchantRegistry.verify on-chain
- */
+// Merchant Service
+// CRUD operations on the merchants table.
+// - register: creates Supabase Auth user, inserts merchant record, registers on-chain
+// - list: returns paginated merchant list
+// - approve: updates status to APPROVED, calls MerchantRegistry.verify on-chain
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@bantayog/db";
@@ -21,19 +18,17 @@ import {
 import { deriveEmailFromOwnerName } from "@/lib/merchant/email";
 import { keccak256, toHex, type Address } from "viem";
 
-/** Convert merchant Supabase UUID to bytes32. */
+// Convert merchant Supabase UUID to bytes32.
 function merchantIdToBytes32(id: string): `0x${string}` {
   return keccak256(toHex(id));
 }
 
-/** Compute store name hash for on-chain registry. */
+// Compute store name hash for on-chain registry.
 function computeStoreNameHash(storeName: string): `0x${string}` {
   return keccak256(toHex(storeName));
 }
 
-// ---------------------------------------------------------------------------
 // Register
-// ---------------------------------------------------------------------------
 
 export interface RegisterMerchantResult {
   merchant: Database["public"]["Tables"]["merchants"]["Row"];
@@ -115,9 +110,7 @@ export async function registerMerchant(
   return { merchant, authUserId };
 }
 
-// ---------------------------------------------------------------------------
 // List
-// ---------------------------------------------------------------------------
 
 export interface MerchantListItem {
   id: string;
@@ -162,9 +155,7 @@ export async function listMerchants(
   }));
 }
 
-// ---------------------------------------------------------------------------
 // Approve
-// ---------------------------------------------------------------------------
 
 export async function approveMerchant(
   db: any,
@@ -214,9 +205,7 @@ export async function approveMerchant(
   return updated;
 }
 
-// ---------------------------------------------------------------------------
 // Find by owner name (for login)
-// ---------------------------------------------------------------------------
 
 export async function findMerchantByOwnerName(
   db: any,

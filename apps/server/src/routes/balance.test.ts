@@ -3,21 +3,15 @@ import fc from 'fast-check'
 import { ok, err } from 'neverthrow'
 import { JwtError } from '../lib/errors.js'
 
-// ---------------------------------------------------------------------------
 // Mocks (declared before the mocked modules are imported, following the
 // same pattern used in ./transactions.test.ts).
-// ---------------------------------------------------------------------------
 
 // Balance route never touches @supabase/supabase-js's `createClient`
 // directly (no authMiddleware is mounted on /api/balance), but the module
 // is still imported transitively via other routes wired into app.ts, so it
 // is mocked defensively to avoid any real network call.
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
-    },
-  })),
+vi.mock('jose', () => ({
+  jwtVerify: vi.fn().mockResolvedValue({ payload: null })
 }))
 
 // Controllable QrTokenService.verifyToken result, set per test.
@@ -28,12 +22,10 @@ vi.mock('../services/qr-token.service.js', () => ({
   })),
 }))
 
-// ---------------------------------------------------------------------------
 // Minimal stateful Supabase DB mock — only supports what the balance route
 // actually calls:
 //   db.from('beneficiaries').select().eq().single()
 //   db.from('transactions').select().eq().order().limit()
-// ---------------------------------------------------------------------------
 
 let beneficiaryRow: any
 let transactionRows: any[]
@@ -84,9 +76,7 @@ vi.mock('../lib/supabase.js', () => ({
 
 const { app } = await import('../app.js')
 
-// ---------------------------------------------------------------------------
 // Test setup
-// ---------------------------------------------------------------------------
 
 async function getBalance(query: string) {
   return app.request(`/api/balance/view${query}`, { method: 'GET' })
@@ -123,9 +113,7 @@ describe('GET /api/balance/view — read-only surface and no-PIN access', () => 
     )
   })
 
-  // -------------------------------------------------------------------------
   // Requirement 8.3: no PIN required or accepted
-  // -------------------------------------------------------------------------
 
   it('succeeds with only a token and no pin param at all (Requirement 8.3)', async () => {
     const res = await getBalance('?token=some-valid-token')
@@ -149,9 +137,7 @@ describe('GET /api/balance/view — read-only surface and no-PIN access', () => 
     expect(bodyWithPin).toEqual(bodyWithoutPin)
   })
 
-  // -------------------------------------------------------------------------
   // Requirements 8.1, 8.5: read-only response surface, no mutating controls
-  // -------------------------------------------------------------------------
 
   it('returns a top-level body with only balance and transactions keys (Requirement 8.5)', async () => {
     const res = await getBalance('?token=some-valid-token')
@@ -215,9 +201,7 @@ describe('GET /api/balance/view — read-only surface and no-PIN access', () => 
     expect(body.error).toBe('not_found')
   })
 
-  // -------------------------------------------------------------------------
   // Sanity: existing failure-path behavior is unaffected (not a PIN check)
-  // -------------------------------------------------------------------------
 
   it('returns 401-mapped error for an invalid/expired token, independent of any pin param', async () => {
     mockVerifyToken.mockResolvedValueOnce(err(new JwtError('Token verification failed', 'invalid')))
@@ -230,10 +214,8 @@ describe('GET /api/balance/view — read-only surface and no-PIN access', () => 
   })
 })
 
-// ---------------------------------------------------------------------------
 // Property 24: Balance view returns the beneficiary's own history, ordered
 // and capped (Requirements 8.2, 8.4)
-// ---------------------------------------------------------------------------
 
 // Feature: polygon-amoy-phpc-migration, Property 24: Balance view returns the beneficiary's own history, ordered and capped
 // Validates: Requirements 8.2, 8.4
@@ -307,10 +289,8 @@ describe("Property 24: balance view returns the beneficiary's own history, order
   })
 })
 
-// ---------------------------------------------------------------------------
 // Property 25: Balance view withholds all data on invalid access or
 // retrieval failure (Requirements 8.6, 8.7, 8.8)
-// ---------------------------------------------------------------------------
 
 // Feature: polygon-amoy-phpc-migration, Property 25: Balance view withholds all data on invalid access or retrieval failure
 // Validates: Requirements 8.6, 8.7, 8.8

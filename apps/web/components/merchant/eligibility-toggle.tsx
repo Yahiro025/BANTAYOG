@@ -1,6 +1,5 @@
-// ---------------------------------------------------------------------------
+
 // Eligibility Toggle — Good for Children / Not Good for Children
-// ---------------------------------------------------------------------------
 
 type EligibilityValue = "eligible" | "ineligible" | null;
 

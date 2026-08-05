@@ -35,10 +35,8 @@ export class VisionService {
     this.productsService = new ProductsService(db)
   }
 
-  /**
-   * Identifies a product in an image using Gemini vision,
-   * then matches each candidate against the local products catalog.
-   */
+  // Identifies a product in an image using Gemini vision,
+// then matches each candidate against the local products catalog.
   async classifyProduct(imageBase64: string): Promise<AppResult<VisionClassificationResult>> {
     if (!imageBase64 || imageBase64.trim() === '') {
       return ok({ identified: false, reason: 'Empty image data provided' })
@@ -112,9 +110,7 @@ export class VisionService {
     }
   }
 
-  /**
-   * Prompts Gemini to analyze the product in an image and return a child safety verdict.
-   */
+  // Prompts Gemini to analyze the product in an image and return a child safety verdict.
   async analyzeChildSafety(imageBase64: string): Promise<AppResult<any>> {
     if (!imageBase64 || imageBase64.trim() === '') {
       return err(new ValidationError('Empty image data provided'))
@@ -150,9 +146,7 @@ export class VisionService {
     }
   }
 
-  /**
-   * Fully Optimized Single-Step Pipeline
-   */
+  // Fully Optimized Single-Step Pipeline
   async analyzeScan(imageBase64: string): Promise<AppResult<any>> {
     if (!imageBase64 || imageBase64.trim() === '') {
       return err(new ValidationError('Empty image data provided'))

@@ -1,7 +1,5 @@
-/**
- * Derive a deterministic email from owner name for Supabase Auth.
- * Used during merchant registration and login.
- */
+// Derive a deterministic email from owner name for Supabase Auth.
+// Used during merchant registration and login.
 export function deriveEmailFromOwnerName(ownerName: string): string {
   const normalized = ownerName
     .toLowerCase()

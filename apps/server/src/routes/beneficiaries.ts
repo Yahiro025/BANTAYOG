@@ -11,10 +11,8 @@ import type { Env } from '../types/env.js'
 
 const beneficiaryRoutes = new Hono<{ Bindings: Env; Variables: AuthContext }>()
 
-/**
- * POST /api/beneficiaries/register
- * Onboard a new beneficiary and generate QR Voucher/Pass
- */
+// POST /api/beneficiaries/register
+// Onboard a new beneficiary and generate QR Voucher/Pass
 beneficiaryRoutes.post('/register', zValidator('json', CreateBeneficiaryDto, (result, c) => {
   if (!result.success) {
     const errorMsg = result.error?.issues
@@ -61,10 +59,8 @@ beneficiaryRoutes.post('/register', zValidator('json', CreateBeneficiaryDto, (re
   )
 })
 
-/**
- * GET /api/beneficiaries
- * Fetch paginated active beneficiaries directory
- */
+// GET /api/beneficiaries
+// Fetch paginated active beneficiaries directory
 beneficiaryRoutes.get('/', async (c) => {
   const db = createServiceClient()
   const service = new BeneficiaryService(db)
@@ -83,14 +79,12 @@ beneficiaryRoutes.get('/', async (c) => {
   )
 })
 
-/**
- * PATCH /api/beneficiaries/:id/credits
- * Triggers the one-time tier-based PHPC allocation for a beneficiary
- * (5,000 PHPC for Tier 1, 3,500 PHPC for Tier 2). The request body is
- * ignored - the allocation amount is derived from the beneficiary's tier,
- * not caller-supplied. Rejects duplicate allocations, insufficient
- * treasury balance, invalid tier classifications, or on-chain failures.
- */
+// PATCH /api/beneficiaries/:id/credits
+// Triggers the one-time tier-based PHPC allocation for a beneficiary
+// (5,000 PHPC for Tier 1, 3,500 PHPC for Tier 2). The request body is
+// ignored - the allocation amount is derived from the beneficiary's tier,
+// not caller-supplied. Rejects duplicate allocations, insufficient
+// treasury balance, invalid tier classifications, or on-chain failures.
 beneficiaryRoutes.patch('/:id/credits', async (c) => {
   const id = c.req.param('id')
   const db = createServiceClient()
@@ -107,10 +101,8 @@ beneficiaryRoutes.patch('/:id/credits', async (c) => {
   )
 })
 
-/**
- * GET /api/beneficiaries/metrics
- * Dashboard aggregates: total beneficiaries, critical units, allocated PHPC, verified merchants.
- */
+// GET /api/beneficiaries/metrics
+// Dashboard aggregates: total beneficiaries, critical units, allocated PHPC, verified merchants.
 beneficiaryRoutes.get('/metrics', async (c) => {
   const db = createServiceClient()
   const service = new BeneficiaryService(db)
@@ -123,10 +115,8 @@ beneficiaryRoutes.get('/metrics', async (c) => {
   )
 })
 
-/**
- * PATCH /api/beneficiaries/:id/status
- * Updates eligibility status of a beneficiary (admin only).
- */
+// PATCH /api/beneficiaries/:id/status
+// Updates eligibility status of a beneficiary (admin only).
 beneficiaryRoutes.patch('/:id/status', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()

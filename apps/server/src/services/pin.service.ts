@@ -2,36 +2,25 @@ import { hash, verify } from '@node-rs/argon2'
 import { type AppResult, ok, err, ValidationError, RateLimitError } from '../lib/errors.js'
 import { getRedisClient } from '../lib/redis.js'
 
-/**
- * Requirement 7.5: number of consecutive incorrect PIN attempts that triggers
- * a lockout.
- */
+// Requirement 7.5: number of consecutive incorrect PIN attempts that triggers
+// a lockout.
 const MAX_CONSECUTIVE_FAILURES = 5
 
-/**
- * Requirement 7.5: lockout duration (and failure-counter TTL) in seconds.
- */
+// Requirement 7.5: lockout duration (and failure-counter TTL) in seconds.
 const LOCKOUT_TTL_SECONDS = 900
 
-/**
- * Redis key prefixes for the PIN lockout state (design.md "PIN Lockout State
- * (Upstash Redis)"):
- *   pin_fail:{beneficiaryId} — consecutive failure counter
- *   pin_lock:{beneficiaryId} — lock flag, set once the counter reaches
- *                              MAX_CONSECUTIVE_FAILURES, TTL LOCKOUT_TTL_SECONDS
- */
+// Redis key prefixes for the PIN lockout state (design.md "PIN Lockout State
+// (Upstash Redis)"):
+// pin_fail:{beneficiaryId} — consecutive failure counter
+// pin_lock:{beneficiaryId} — lock flag, set once the counter reaches
+// MAX_CONSECUTIVE_FAILURES, TTL LOCKOUT_TTL_SECONDS
 const FAIL_KEY_PREFIX = 'pin_fail:'
 const LOCK_KEY_PREFIX = 'pin_lock:'
 
-/**
- * BE1-2.3 · PIN Service
- *
- * Handles Argon2id hashing and verification of 6-digit PINs.
- */
+// BE1-2.3 · PIN Service
+// Handles Argon2id hashing and verification of 6-digit PINs.
 export class PinService {
-  /**
-   * Hashes a 6-digit PIN using Argon2id.
-   */
+  // Hashes a 6-digit PIN using Argon2id.
   async hashPin(pin: string): Promise<AppResult<string>> {
     try {
       const hashed = await hash(pin);
@@ -41,9 +30,7 @@ export class PinService {
     }
   }
 
-  /**
-   * Verifies a 6-digit PIN against an Argon2id hash.
-   */
+  // Verifies a 6-digit PIN against an Argon2id hash.
   async verifyPin(pin: string, hashString: string): Promise<AppResult<boolean>> {
     try {
       const isValid = await verify(hashString, pin);
@@ -53,28 +40,23 @@ export class PinService {
     }
   }
 
-  /**
-   * Verifies a submitted PIN with consecutive-failure lockout tracking.
-   *
-   * Requirement 7.3: verifies the submitted PIN against the stored hash.
-   * Requirement 7.4: a wrong PIN is reported as an authentication failure
-   * without mutating any balance (handled by the caller; this method only
-   * reports success/failure).
-   * Requirement 7.5: after MAX_CONSECUTIVE_FAILURES (5) consecutive incorrect
-   * attempts, further purchase PIN attempts for that beneficiary are blocked
-   * for LOCKOUT_TTL_SECONDS (900) and reported as a `RateLimitError`.
-   *
-   * Redis state (design.md "PIN Lockout State (Upstash Redis)"):
-   *   pin_fail:{beneficiaryId} — consecutive failure counter, TTL refreshed
-   *                              to 900s on every increment
-   *   pin_lock:{beneficiaryId} — lock flag set with a 900s TTL once the
-   *                              failure counter reaches 5
-   *
-   * If Upstash Redis is not configured, lockout enforcement is skipped
-   * entirely (graceful pass-through, matching this codebase's established
-   * Upstash-optional convention) and PIN verification still proceeds via
-   * `verifyPin`.
-   */
+  // Verifies a submitted PIN with consecutive-failure lockout tracking.
+// Requirement 7.3: verifies the submitted PIN against the stored hash.
+// Requirement 7.4: a wrong PIN is reported as an authentication failure
+// without mutating any balance (handled by the caller; this method only
+// reports success/failure).
+// Requirement 7.5: after MAX_CONSECUTIVE_FAILURES (5) consecutive incorrect
+// attempts, further purchase PIN attempts for that beneficiary are blocked
+// for LOCKOUT_TTL_SECONDS (900) and reported as a `RateLimitError`.
+// Redis state (design.md "PIN Lockout State (Upstash Redis)"):
+// pin_fail:{beneficiaryId} — consecutive failure counter, TTL refreshed
+// to 900s on every increment
+// pin_lock:{beneficiaryId} — lock flag set with a 900s TTL once the
+// failure counter reaches 5
+// If Upstash Redis is not configured, lockout enforcement is skipped
+// entirely (graceful pass-through, matching this codebase's established
+// Upstash-optional convention) and PIN verification still proceeds via
+// `verifyPin`.
   async verifyPinWithLockout(
     beneficiaryId: string,
     pin: string,

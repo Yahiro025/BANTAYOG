@@ -3,9 +3,7 @@
 import Link from "next/link";
 import { RecentTransactions } from "@/components/merchant/recent-transactions";
 
-// ---------------------------------------------------------------------------
 // Full Transaction History Page — /dashboard/transactions
-// ---------------------------------------------------------------------------
 
 export default function TransactionHistoryPage() {
   return (

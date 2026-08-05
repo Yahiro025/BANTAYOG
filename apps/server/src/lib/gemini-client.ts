@@ -1,15 +1,12 @@
 import { GoogleGenAI } from '@google/genai'
 
-/**
- * Vision-capable fallback chain (confirmed working with inline image data on free tier).
- * Models are tried in order; we skip 429 rate-limits and move to the next.
- * We do NOT retry on 400 Bad Request — those are genuine errors.
- *
- * Removed from chain (do NOT add back):
- *   - gemini-flash-latest     → 400: rejects inlineData image bytes
- *   - gemini-pro-latest       → permanent 429 on free tier (quota = 0)
- *   - gemini-2.5-pro          → permanent 429 on free tier (quota = 0)
- */
+// Vision-capable fallback chain (confirmed working with inline image data on free tier).
+// Models are tried in order; we skip 429 rate-limits and move to the next.
+// We do NOT retry on 400 Bad Request — those are genuine errors.
+// Removed from chain (do NOT add back):
+// - gemini-flash-latest     → 400: rejects inlineData image bytes
+// - gemini-pro-latest       → permanent 429 on free tier (quota = 0)
+// - gemini-2.5-pro          → permanent 429 on free tier (quota = 0)
 const VISION_FALLBACK_CHAIN = [
   'gemini-3.5-flash',
   'gemini-3.1-flash-lite',
@@ -41,8 +38,6 @@ export async function callGeminiWithFallback(
   if (apiKeys.length === 0) {
     throw new Error('GEMINI_API_KEYS environment variable is not set.')
   }
-
-
 
   let cleanBase64 = ''
   let mimeType = 'image/jpeg'

@@ -14,10 +14,8 @@ const validateSchema = z.object({
   category: z.string().optional()
 })
 
-/**
- * POST /api/products/validate
- * Accepts a product name and validates it against the catalog.
- */
+// POST /api/products/validate
+// Accepts a product name and validates it against the catalog.
 productRoutes.post('/validate', zValidator('json', validateSchema), async (c) => {
   const { name } = c.req.valid('json')
   const db = createServiceClient()
@@ -39,11 +37,9 @@ productRoutes.post('/validate', zValidator('json', validateSchema), async (c) =>
   )
 })
 
-/**
- * POST /api/products/validate-or-create
- * Accepts a product name, validates it, and if it doesn't exist, researches it via Gemini,
- * inserts a draft product row, and returns it.
- */
+// POST /api/products/validate-or-create
+// Accepts a product name, validates it, and if it doesn't exist, researches it via Gemini,
+// inserts a draft product row, and returns it.
 productRoutes.post('/validate-or-create', zValidator('json', validateSchema), async (c) => {
   const { name, imageUrl, category } = c.req.valid('json')
   const db = createServiceClient()

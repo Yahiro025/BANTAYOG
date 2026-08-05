@@ -1,12 +1,8 @@
-/**
- * Domain logic: Eligibility & Tier Computation
- *
- * Computes a beneficiary's intervention tier based on age in days.
- * Tier 1 (Critical): ≤ 1,000 days  (~33 months)
- * Tier 2 (Standard): > 1,000 days
- *
- * Pure functions — no side effects, no I/O.
- */
+// Domain logic: Eligibility & Tier Computation
+// Computes a beneficiary's intervention tier based on age in days.
+// Tier 1 (Critical): ≤ 1,000 days  (~33 months)
+// Tier 2 (Standard): > 1,000 days
+// Pure functions — no side effects, no I/O.
 
 export type Tier = 1 | 2;
 
@@ -16,19 +12,16 @@ export interface TierResult {
   isTransition: boolean;
 }
 
-/** Milliseconds per day (accounting for average leap-year drift). */
+// Milliseconds per day (accounting for average leap-year drift).
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
-/** Critical threshold in days. */
+// Critical threshold in days.
 const CRITICAL_DAYS = 1000;
 
-/**
- * Compute intervention tier from a birthdate.
- *
- * @param birthdate  The child's birthdate.
- * @param currentDate Optional reference date (defaults to now). Used for testing.
- * @returns TierResult with tier, daysOld, and whether this is a transition boundary.
- */
+// Compute intervention tier from a birthdate.
+// @param birthdate  The child's birthdate.
+// @param currentDate Optional reference date (defaults to now). Used for testing.
+// @returns TierResult with tier, daysOld, and whether this is a transition boundary.
 export function computeTier(
   birthdate: Date,
   currentDate: Date = new Date(),
@@ -46,15 +39,12 @@ export function computeTier(
   };
 }
 
-/**
- * Re-evaluate tier for an existing beneficiary record.
- * Detects if the tier has changed since last evaluation.
- *
- * @param birthdate    The child's birthdate.
- * @param previousTier The previously stored tier (1 or 2).
- * @param currentDate  Optional reference date.
- * @returns TierResult with transition flag set if tier changed.
- */
+// Re-evaluate tier for an existing beneficiary record.
+// Detects if the tier has changed since last evaluation.
+// @param birthdate    The child's birthdate.
+// @param previousTier The previously stored tier (1 or 2).
+// @param currentDate  Optional reference date.
+// @returns TierResult with transition flag set if tier changed.
 export function reEvaluateTier(
   birthdate: Date,
   previousTier: Tier,
@@ -67,14 +57,11 @@ export function reEvaluateTier(
   };
 }
 
-/**
- * Derive an approximate birthdate from age in months.
- * Used when the DB stores child_age_months instead of a birthdate column.
- *
- * @param ageMonths Integer months.
- * @param referenceDate Optional reference date (defaults to now).
- * @returns Approximate birthdate.
- */
+// Derive an approximate birthdate from age in months.
+// Used when the DB stores child_age_months instead of a birthdate column.
+// @param ageMonths Integer months.
+// @param referenceDate Optional reference date (defaults to now).
+// @returns Approximate birthdate.
 export function deriveBirthdateFromAgeMonths(
   ageMonths: number,
   referenceDate: Date = new Date(),
@@ -84,12 +71,9 @@ export function deriveBirthdateFromAgeMonths(
   return d;
 }
 
-/**
- * Format age details string for the frontend table.
- *
- * @param ageMonths Integer months.
- * @returns Formatted string like "~24 months\n(730 days)".
- */
+// Format age details string for the frontend table.
+// @param ageMonths Integer months.
+// @returns Formatted string like "~24 months\n(730 days)".
 export function formatAgeDetails(ageMonths: number): string {
   const days = Math.round(ageMonths * 30.44);
   return `~${ageMonths} months\n(${days} days)`;

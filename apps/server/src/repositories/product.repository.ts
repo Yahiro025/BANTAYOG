@@ -7,9 +7,7 @@ export class ProductRepository extends BaseRepository<'products'> {
     super(db, 'products')
   }
 
-  /**
-   * Performs fuzzy search (case-insensitive ILIKE) by product name in the catalog.
-   */
+  // Performs fuzzy search (case-insensitive ILIKE) by product name in the catalog.
   async findByNameFuzzy(name: string) {
     const { data, error } = await this.db
       .from('products')

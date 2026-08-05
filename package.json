@@ -2,7 +2,7 @@
   "name": "bantayog",
   "private": true,
   "version": "0.1.0",
-  "description": "BANTAYOG — civic-tech nutrition-subsidy PWA. QR-card + sari-sari merchant on-chain settlement via mock PHPC on Ronin Saigon testnet.",
+  "description": "BANTAYOG — civic-tech nutrition-subsidy PWA. QR-card + sari-sari merchant on-chain settlement via PHPC nutrition subsidy on Stellar testnet.",
   "license": "MIT",
   "packageManager": "pnpm@9.15.0",
   "engines": {
@@ -12,18 +12,23 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "deploy:contracts": "pnpm --filter @bantayog/contracts compile && pnpm --filter @bantayog/contracts hardhat run scripts/deploy.ts --network amoy",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "test": "turbo run test",
     "test:web": "pnpm --filter @bantayog/web test",
     "clean": "turbo run clean && rm -rf node_modules",
     "setup:cron": "bash scripts/setup-external-cron.sh",
-    "setup:cron:test": "bash scripts/setup-external-cron.sh --test-only"
+    "setup:cron:test": "bash scripts/setup-external-cron.sh --test-only",
+    "bootstrap:stellar": "pnpm --filter @bantayog/server exec tsx -r dotenv/config ../../scripts/bootstrap-stellar.ts",
+    "provision:stellar": "pnpm --filter @bantayog/server exec tsx -r dotenv/config ../../scripts/provision-stellar-accounts.ts",
+    "accept:stellar": "pnpm --filter @bantayog/server exec tsx -r dotenv/config ../../scripts/acceptance-verification.ts"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.45.4",
     "turbo": "^2.3.3",
     "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "16.2.0"
   }
 }

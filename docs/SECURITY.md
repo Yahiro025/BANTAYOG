@@ -35,8 +35,14 @@ Rate limiting is enforced at the API route boundary using `@upstash/ratelimit` w
 
 ## Blockchain Security
 
-- **LGU Treasury Key**: The server's deployer wallet private key (`DEPLOYER_PRIVATE_KEY`) is stored securely on the environment boundary and never exposed to the client.
-- **On-chain Assertions**: The PHPCSubsidy smart contract enforces `onlyOwner` access checks on credit allocation (`allocateCredits`) and transaction resolution (`processTransaction`).
+- **Stellar Secrets**: The issuer, distribution, and sponsor account secret seeds
+  (`PHPC_ISSUER_SECRET`, `PHPC_DISTRIBUTION_SECRET`, `STELLAR_SPONSOR_SECRET`) are stored securely
+  on the environment boundary and never exposed to the client. Beneficiary and merchant custodial
+  keys are encrypted at rest with AES-256-GCM under a separate `CUSTODIAL_KEY_ENCRYPTION_KEY`.
+- **Issuer-Enforced Policy**: PHPC is a classic Stellar asset with `AUTH_REQUIRED` (only
+  LGU-authorized trustlines can hold PHPC), `AUTH_REVOCABLE` (the LGU can freeze a holder's
+  balance), and `AUTH_CLAWBACK_ENABLED` (the LGU can reclaim misused subsidies) issuer flags set
+  at bootstrap. There is no custom bookkeeping contract; Stellar's native ledger enforces balances.
 
 ## Reporting Vulnerabilities
 

@@ -45,11 +45,9 @@ const createTransactionSchema = z.object({
 // Apply authentication to all transaction routes
 transactionRoutes.use('*', authMiddleware)
 
-/**
- * POST /api/transactions
- * Submit a new redemption transaction.
- * Restrained to merchants.
- */
+// POST /api/transactions
+// Submit a new redemption transaction.
+// Restrained to merchants.
 transactionRoutes.post(
   '/',
   requireRole('merchant'),
@@ -89,12 +87,16 @@ transactionRoutes.post(
 
     const { beneficiaryId } = decodedToken
 
-    // Check if the QR token is expired in the database (status suspends it)
+    // Check if the QR token is expired or revoked in the database
     const { data: qrPass } = await (db as any)
       .from('qr_passes')
-      .select('expires_at')
+      .select('expires_at, revoked')
       .eq('beneficiary_id', beneficiaryId)
       .maybeSingle()
+
+    if (qrPass && qrPass.revoked) {
+      return c.json({ error: 'invalid_pass', message: 'This pass has been revoked' }, 403)
+    }
 
     if (qrPass && qrPass.expires_at && new Date(qrPass.expires_at) <= new Date()) {
       return c.json({ error: 'unauthorized', message: 'This pass is invalid or has expired.' }, 401)
@@ -143,14 +145,35 @@ transactionRoutes.post(
       return c.json({ error: 'bad_request', message: 'Insufficient beneficiary credit balance' }, 400)
     }
 
-    // 5. Call the settle_sale Postgres RPC to atomically deduct beneficiary credit,
-    // credit merchant wallet_balance, and insert the transaction row with status = CONFIRMED.
-    const { data: txId, error: rpcError } = await (db as any).rpc('settle_sale', {
+    // 5. Compute the asset amount in stroops (7 decimals, integer-safe).
+    // 1 credit = 1 PHP = 1 PHPC = 10,000,000 stroops. Postgres stores
+    // credit_balance as NUMERIC(12,2), so totalCreditDeducted has at most
+    // 2 decimal places. We convert via string manipulation to avoid any
+    // floating-point intermediate.
+    const STROOPS_PER_ASSET = 10_000_000n
+    const creditStr = String(totalCreditDeducted)
+    const [whole, fraction = ''] = creditStr.split('.')
+    const paddedFraction = fraction.padEnd(7, '0').slice(0, 7)
+    const assetAmountStroops = String(BigInt(whole) * STROOPS_PER_ASSET + BigInt(paddedFraction))
+
+    // 6. Aggregate category totals for the semantic outbox payload (F3).
+    const categoryTotals: Record<string, number> = {}
+    for (const item of items) {
+      const cat = item.category || 'OTHER'
+      categoryTotals[cat] = (categoryTotals[cat] || 0) + Number(item.creditCost)
+    }
+
+    // 7. Call settle_sale_and_enqueue to atomically deduct beneficiary credit,
+    // credit merchant wallet_balance, insert the transaction row, set it to
+    // PENDING_CHAIN, and enqueue the outbox row — all in one transaction.
+    const { data: txId, error: rpcError } = await (db as any).rpc('settle_sale_and_enqueue', {
       p_beneficiary_id: beneficiaryId,
       p_merchant_id: merchant.id,
       p_amount: totalCreditDeducted,
       p_items: items,
-      p_transaction_id: idempotencyKey
+      p_transaction_id: idempotencyKey,
+      p_category_totals: categoryTotals,
+      p_asset_amount_stroops: assetAmountStroops,
     })
 
     if (rpcError || !txId) {
@@ -164,10 +187,11 @@ transactionRoutes.post(
       merchant_id: merchant.id,
       item_list_jsonb: items,
       total_credit_deducted: totalCreditDeducted,
+      asset_amount_stroops: assetAmountStroops,
       stablecoin_amount_wei: '0',
       onchain_tx_hash: null,
       idempotency_key: idempotencyKey,
-      status: 'CONFIRMED',
+      status: 'PENDING_CHAIN',
       created_at: confirmedAt,
       confirmed_at: confirmedAt
     }
@@ -178,10 +202,8 @@ transactionRoutes.post(
   }
 )
 
-/**
- * GET /api/transactions
- * Retrieve transaction history. Accessible to admin and merchant.
- */
+// GET /api/transactions
+// Retrieve transaction history. Accessible to admin and merchant.
 transactionRoutes.get(
   '/',
   requireRole('admin', 'merchant'),
@@ -231,10 +253,8 @@ transactionRoutes.get(
   }
 )
 
-/**
- * GET /api/transactions/:id
- * Retrieve detail of a single transaction.
- */
+// GET /api/transactions/:id
+// Retrieve detail of a single transaction.
 transactionRoutes.get(
   '/:id',
   requireRole('admin', 'merchant'),

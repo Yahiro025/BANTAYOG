@@ -5,9 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCartStore } from "@/stores/cart-store";
 
-// ---------------------------------------------------------------------------
 // Transaction Complete Page (ref: 28.png)
-// ---------------------------------------------------------------------------
 
 export default function TransactionCompletePage() {
   return (

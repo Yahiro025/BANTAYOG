@@ -24,10 +24,8 @@ const validateNonBrandedSchema = z.object({
   unit: z.string().min(1)
 })
 
-/**
- * POST /api/vision/classify
- * Accepts inline base64 image data and returns candidate products from the catalog.
- */
+// POST /api/vision/classify
+// Accepts inline base64 image data and returns candidate products from the catalog.
 visionRoutes.post('/classify', zValidator('json', classifySchema), async (c) => {
   const { imageBase64 } = c.req.valid('json')
   const db = createServiceClient()
@@ -41,10 +39,8 @@ visionRoutes.post('/classify', zValidator('json', classifySchema), async (c) => 
   )
 })
 
-/**
- * POST /api/vision/analyze-nutrition
- * Accepts inline base64 image data and returns structured child nutritional safety verdict.
- */
+// POST /api/vision/analyze-nutrition
+// Accepts inline base64 image data and returns structured child nutritional safety verdict.
 visionRoutes.post('/analyze-nutrition', zValidator('json', classifySchema), async (c) => {
   const { imageBase64 } = c.req.valid('json')
   const db = createServiceClient()
@@ -58,11 +54,9 @@ visionRoutes.post('/analyze-nutrition', zValidator('json', classifySchema), asyn
   )
 })
 
-/**
- * POST /api/vision/analyze-scan
- * Performs unified product identification, rate-limit fallback, product catalog lookup,
- * price research (±₱10 for drafts), and child-safety gates.
- */
+// POST /api/vision/analyze-scan
+// Performs unified product identification, rate-limit fallback, product catalog lookup,
+// price research (±₱10 for drafts), and child-safety gates.
 visionRoutes.post('/analyze-scan', zValidator('json', classifySchema), async (c) => {
   const { imageBase64 } = c.req.valid('json')
   const db = createServiceClient()
@@ -76,10 +70,8 @@ visionRoutes.post('/analyze-scan', zValidator('json', classifySchema), async (c)
   )
 })
 
-/**
- * POST /api/vision/validate-non-branded
- * Validates a non-branded palengke item with image and manual inputs.
- */
+// POST /api/vision/validate-non-branded
+// Validates a non-branded palengke item with image and manual inputs.
 visionRoutes.post('/validate-non-branded', zValidator('json', validateNonBrandedSchema), async (c) => {
   const { imageBase64, productName, price, unit } = c.req.valid('json')
   const pricingValidationService = new PricingValidationService()

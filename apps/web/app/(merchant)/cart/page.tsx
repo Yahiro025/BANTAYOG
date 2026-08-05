@@ -1,8 +1,6 @@
 import Link from "next/link";
 
-// ---------------------------------------------------------------------------
 // Scan Cart Items — Method Choice (ref: 15.png)
-// ---------------------------------------------------------------------------
 
 export default function ScanCartItemsPage() {
   return (

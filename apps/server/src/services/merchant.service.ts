@@ -1,11 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@bantayog/db'
 import { MerchantRepository } from '../repositories/merchant.repository.js'
+import { MerchantWalletRepository } from '../repositories/merchant-wallet.repository.js'
+import { CustodialWalletService } from './custodial-wallet.service.js'
+import { StellarClient } from './chain.client.js'
+import { loadChainConfig } from '../lib/chain/config.js'
 import { type AppResult, ok, err, AuthError, PersistenceError } from '../lib/errors.js'
 
-/**
- * BE1-2.3 · Merchant CRUD Service
- */
+// BE1-2.3 · Merchant CRUD Service
 export class MerchantService {
   private db: SupabaseClient<Database>
   private merchantRepo: MerchantRepository
@@ -15,10 +17,8 @@ export class MerchantService {
     this.merchantRepo = new MerchantRepository(db)
   }
 
-  /**
-   * Registers a new merchant.
-   * Creates credentials in Supabase Auth and inserts the merchant profile record.
-   */
+  // Registers a new merchant.
+// Creates credentials in Supabase Auth and inserts the merchant profile record.
   async register(dto: {
     storeName: string;
     ownerName: string;
@@ -58,15 +58,32 @@ export class MerchantService {
         wallet_address: null,
         status: 'APPROVED' // Default to approved on registration for phase 2/3 flows
       });
+
+      // 3. Provision a Stellar custodial wallet for the approved merchant,
+      // including on-chain account/trustline/authorization.
+      const chainConfigResult = loadChainConfig(process.env);
+      if (chainConfigResult.isOk()) {
+        const walletService = new CustodialWalletService(chainConfigResult.value);
+        const walletRepo = new MerchantWalletRepository(this.db);
+        const stellarClientResult = await StellarClient.create(chainConfigResult.value);
+        const stellarClient = stellarClientResult.isOk() ? stellarClientResult.value : undefined;
+        const walletResult = await walletService.generateWallet(record.id, 'merchant', walletRepo, stellarClient);
+        if (walletResult.isOk()) {
+          // Mirror the address to merchants.wallet_address for DTO reads.
+          await (this.db as any)
+            .from('merchants')
+            .update({ wallet_address: walletResult.value.address })
+            .eq('id', record.id);
+        }
+      }
+
       return ok(record);
     } catch (dbError: any) {
       return err(new PersistenceError(`Failed to save merchant profile: ${dbError.message}`, 'merchants'));
     }
   }
 
-  /**
-   * Returns a paginated list of merchants.
-   */
+  // Returns a paginated list of merchants.
   async list(page: number = 1, limit: number = 20): Promise<AppResult<{
     data: any[];
     count: number;
@@ -94,9 +111,8 @@ export class MerchantService {
     }
   }
 
-  /**
-   * Approves a merchant and registers them on-chain.
-   */
+  // Approves a merchant, provisions their Stellar custodial wallet, and
+// mirrors the address.
   async approve(merchantId: string): Promise<AppResult<any>> {
     try {
       const { data: merchant, error: fetchError } = await (this.db as any)
@@ -107,6 +123,22 @@ export class MerchantService {
 
       if (fetchError || !merchant) {
         return err(new PersistenceError(`Merchant not found: ${fetchError?.message ?? merchantId}`, 'merchants'));
+      }
+
+      // Provision a Stellar custodial wallet before marking as APPROVED.
+      const chainConfigResult = loadChainConfig(process.env);
+      if (chainConfigResult.isOk()) {
+        const walletService = new CustodialWalletService(chainConfigResult.value);
+        const walletRepo = new MerchantWalletRepository(this.db);
+        const stellarClientResult = await StellarClient.create(chainConfigResult.value);
+        const stellarClient = stellarClientResult.isOk() ? stellarClientResult.value : undefined;
+        const walletResult = await walletService.generateWallet(merchantId, 'merchant', walletRepo, stellarClient);
+        if (walletResult.isOk()) {
+          await (this.db as any)
+            .from('merchants')
+            .update({ wallet_address: walletResult.value.address })
+            .eq('id', merchantId);
+        }
       }
 
       const { data: updated, error: updateError } = await (this.db as any)
@@ -126,9 +158,7 @@ export class MerchantService {
     }
   }
 
-  /**
-   * Updates status of a merchant.
-   */
+  // Updates status of a merchant.
   async updateStatus(merchantId: string, status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED'): Promise<AppResult<any>> {
     try {
       const { data, error } = await (this.db as any)

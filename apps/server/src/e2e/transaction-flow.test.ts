@@ -6,7 +6,7 @@ import { QrTokenService } from '../services/qr-token.service.js'
 import { ProductsService } from '../services/products.service.js'
 import { BeneficiaryService } from '../services/beneficiary.service.js'
 import { MerchantService } from '../services/merchant.service.js'
-import { ChainClient } from '../services/chain.client.js'
+import { StellarClient } from '../services/chain.client.js'
 
 process.env.GEMINI_API_KEY = 'fake-gemini-key-for-tests'
 
@@ -30,20 +30,18 @@ vi.mock('@google/genai', () => {
   }
 })
 
-// Mock ChainClient so no real blockchain calls are made
+// Mock StellarClient so no real blockchain calls are made
 vi.mock('../services/chain.client.js', () => {
-  return {
-    ChainClient: vi.fn().mockImplementation(() => ({
-      getBalance: vi.fn().mockResolvedValue(BigInt(5000) * BigInt(10 ** 18)),
-      transferPHPC: vi.fn().mockResolvedValue('0xdeadbeef1234567890abcdef1234567890abcdef1234567890abcdef12345678'),
-      waitForTransactionReceipt: vi.fn().mockResolvedValue({
-        blockNumber: BigInt(42),
-        status: 'success'
-      }),
-      processTransaction: vi.fn().mockResolvedValue('0xprocesshash1234567890abcdef1234567890abcdef1234567890abcdef123456'),
-      allocateCredits: vi.fn().mockResolvedValue('0xallocatehash1234567890abcdef1234567890abcdef1234567890abcdef12')
-    }))
+  const mockClientInstance = {
+    getAssetBalance: vi.fn().mockResolvedValue({ isOk: () => true, value: 5000n * 10_000_000n }),
+    allocateSubsidy: vi.fn().mockResolvedValue({ isOk: () => true, value: { hash: 'mock-stellar-hash', ledger: 42 } }),
+    settlePurchase: vi.fn().mockResolvedValue({ isOk: () => true, value: { hash: 'mock-settle-hash', ledger: 43 } }),
+    hasAuthorizedTrustline: vi.fn().mockResolvedValue({ isOk: () => true, value: true }),
+    provisionAccount: vi.fn().mockResolvedValue({ isOk: () => true, isErr: () => false, value: undefined }),
   }
+  const StellarClientMock: any = vi.fn().mockImplementation(() => mockClientInstance)
+  StellarClientMock.create = vi.fn().mockResolvedValue({ isOk: () => true, isErr: () => false, value: mockClientInstance })
+  return { StellarClient: StellarClientMock }
 })
 
 // ── Stateful mock DB ──
@@ -212,11 +210,13 @@ describe('End-to-End Transaction Flow Integration', () => {
 
     // BeneficiaryService.register loads ChainConfig to generate a custodial
     // wallet during registration; stub the required Polygon Amoy variables.
-    vi.stubEnv('POLYGON_AMOY_RPC_URL', 'https://rpc-amoy.example.com')
-    vi.stubEnv('DEPLOYER_PRIVATE_KEY', '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80')
-    vi.stubEnv('LGU_ADMIN_WALLET_ADDRESS', '0x1234567890123456789012345678901234567890')
-    vi.stubEnv('PHPC_TOKEN_ADDRESS', '0xABCDEF0123456789ABCDEF0123456789ABCDEF01')
-    vi.stubEnv('PHPC_SUBSIDY_ADDRESS', '0x9876543210987654321098765432109876543210')
+    vi.stubEnv('STELLAR_HORIZON_URL', 'https://horizon-testnet.stellar.org')
+    vi.stubEnv('STELLAR_NETWORK_PASSPHRASE', 'Test SDF Network ; September 2015')
+    vi.stubEnv('PHPC_ASSET_CODE', 'PHPC')
+    vi.stubEnv('PHPC_ISSUER_PUBLIC_KEY', 'GDVIX3H4TPPZ3ZR5TBYGV2BHVT5KZGIIACXPGTS3WJI7FCLIQMDKXBP6')
+    vi.stubEnv('PHPC_ISSUER_SECRET', 'SBLOCMCBZRMHGNNELJSDHS2UKCDI2KWDVTPQGJLX3IWM34ZTDOID7XCI')
+    vi.stubEnv('PHPC_DISTRIBUTION_SECRET', 'SD2ZBARMFVIIPB75WKI6GOEATW3CWEZ3FCMFRLWPS4H34KLP2WLXVKTR')
+    vi.stubEnv('STELLAR_SPONSOR_SECRET', 'SA5BA56CFEMCKAYOCKWQ7FRQHXG7VDMBLTHLAPUNKBYRY7P3R2XDIWKM')
     vi.stubEnv('CUSTODIAL_KEY_ENCRYPTION_KEY', 'test-key-encryption-key')
     vi.stubEnv('QR_TOKEN_SECRET', 'test-qr-token-secret')
   })
@@ -337,18 +337,18 @@ describe('End-to-End Transaction Flow Integration', () => {
       stablecoinAmountWei: tx.stablecoin_amount_wei
     })
 
-    // ── 8. Simulate chain submission (mocked ChainClient) ──
-    const chainClient = new ChainClient()
-    const txHash = await chainClient.processTransaction(
-      registration.beneficiary.id,
-      merchant.wallet_address,
-      BigInt(tx.stablecoin_amount_wei),
-      tx.id
-    )
-    expect(txHash).toMatch(/^0x/)
+    // ── 8. Simulate chain submission (mocked StellarClient) ──
+    const stellarClient = new StellarClient()
+    const settleResult = await stellarClient.settlePurchase({
+      beneficiaryAccountId: registration.beneficiary.id,
+      beneficiarySecret: 'mock-secret',
+      merchantAccountId: merchant.wallet_address,
+      amountStroops: BigInt(tx.total_credit_deducted) * 10_000_000n,
+    })
+    expect(settleResult.isOk()).toBe(true)
 
-    const receipt = await chainClient.waitForTransactionReceipt(txHash)
-    expect(receipt.status).toBe('success')
+    const txHash = settleResult.isOk() ? settleResult.value.hash : ''
+    expect(txHash).toBe('mock-settle-hash')
 
     // ── 9. Update transaction to CONFIRMED ──
     const confirmedResult = await transactionService.updateStatus(tx.id, 'CONFIRMED', {

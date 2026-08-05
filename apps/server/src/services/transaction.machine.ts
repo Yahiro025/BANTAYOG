@@ -1,10 +1,8 @@
 import { createMachine } from 'xstate'
 
-/**
- * XState v5 state machine defining the transaction lifecycle:
- * IDLE -> VALIDATING -> PENDING_CHAIN -> SUBMITTED -> CONFIRMED -> RECONCILED.
- * Any state can transition to FAILED on error.
- */
+// XState v5 state machine defining the transaction lifecycle:
+// IDLE -> VALIDATING -> PENDING_CHAIN -> SUBMITTED -> CONFIRMED -> RECONCILED.
+// Any state can transition to FAILED on error.
 export const transactionMachine = createMachine({
   id: 'transaction',
   initial: 'IDLE',

@@ -1,22 +1,16 @@
-/**
- * QR Token Service — signed JWT generation and verification.
- *
- * Uses `jose` (Edge-compatible JWT library).
- * Tokens expire after 30 days by default.
- * On verify, the beneficiary's tier is re-evaluated from current date.
- *
- * Bug fix (5-minute legacy cards): Cards generated with the misconfigured
- * 5-minute expiry (exp - iat === 300s) are transparently re-validated using
- * the intended 30-day lifecycle from `iat`. No re-issuing required.
- */
+// QR Token Service — signed JWT generation and verification.
+// Uses `jose` (Edge-compatible JWT library).
+// Tokens expire after 30 days by default.
+// On verify, the beneficiary's tier is re-evaluated from current date.
+// Bug fix (5-minute legacy cards): Cards generated with the misconfigured
+// 5-minute expiry (exp - iat === 300s) are transparently re-validated using
+// the intended 30-day lifecycle from `iat`. No re-issuing required.
 
 import { SignJWT, jwtVerify } from "jose";
 import { getQrTokenSecret } from "@/lib/env";
 import { computeTier, type Tier } from "@/lib/domain/eligibility";
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 export interface QrTokenPayload {
   beneficiaryId: string;
@@ -42,25 +36,18 @@ export interface QrVerifyResult {
   revoked: boolean;
 }
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 function getSecret(): Uint8Array {
   return new TextEncoder().encode(getQrTokenSecret());
 }
 
-// ---------------------------------------------------------------------------
 // Generate
-// ---------------------------------------------------------------------------
 
-/**
- * Generate a signed JWT for a beneficiary QR pass.
- *
- * @param payload  Beneficiary data to embed in the token.
- * @param cardSerial The card serial number to return alongside.
- * @returns QR token result with JWS compact string and expiry.
- */
+// Generate a signed JWT for a beneficiary QR pass.
+// @param payload  Beneficiary data to embed in the token.
+// @param cardSerial The card serial number to return alongside.
+// @returns QR token result with JWS compact string and expiry.
 export async function generateQrToken(
   payload: QrTokenPayload,
   cardSerial: string,
@@ -84,9 +71,7 @@ export async function generateQrToken(
   return { jwsCompact, cardSerial, expiresAt };
 }
 
-// ---------------------------------------------------------------------------
 // Verify
-// ---------------------------------------------------------------------------
 
 export async function verifyQrToken(
   jwsCompact: string,

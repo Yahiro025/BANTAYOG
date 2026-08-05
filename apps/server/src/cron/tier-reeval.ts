@@ -7,13 +7,11 @@ export interface TierReevalResult {
   transitioned: number
 }
 
-/**
- * Worker to run daily re-evaluation of beneficiary intervention tiers.
- * Transitions beneficiaries from Tier 1 (Critical) to Tier 2 (Standard)
- * when they age past 1,000 days from conception.
- * The DB does not store a tier column — eligibility_status 'ELIGIBLE' = still in window.
- * Tier is computed from created_at + child_age_months.
- */
+// Worker to run daily re-evaluation of beneficiary intervention tiers.
+// Transitions beneficiaries from Tier 1 (Critical) to Tier 2 (Standard)
+// when they age past 1,000 days from conception.
+// The DB does not store a tier column — eligibility_status 'ELIGIBLE' = still in window.
+// Tier is computed from created_at + child_age_months.
 export async function runTierReevaluation(): Promise<TierReevalResult> {
   const db = createServiceClient()
   const cronLogger = logger.child({ requestId: 'cron-tier-reeval' })

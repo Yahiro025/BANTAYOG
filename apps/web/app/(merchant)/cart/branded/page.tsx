@@ -13,9 +13,7 @@ import { ItemCard } from "@/components/merchant/item-card";
 import { useCameraPreview } from "@/hooks/use-camera-preview";
 import { authFetch, clearMerchantToken } from "@/lib/api";
 
-// ---------------------------------------------------------------------------
 // AI Image Scan Flow — 3 stages in one page (ref: 16-21.png)
-// ---------------------------------------------------------------------------
 
 type Stage = 1 | 2 | 3;
 

@@ -22,7 +22,7 @@ BANTAYOG
 One in four Filipino children under five suffers irreversible stunting caused by chronic malnutrition during their first 1,000 days of life. Government nutrition cash assistance is often diverted to non-nutritious items (like junk food or tobacco) due to a lack of traceability, while merchants face complex reimbursements that discourage program participation.
 
 **our proposed solution**  
-BANTAYOG transforms loose cash grants into targeted, tracked, nutrition-locked subsidies. Guardians are given a physical QR "Nutri-Pass" that acts as an offline digital wallet. Subsidies can only be spent on nutrient-dense foods at local sari-sari stores, validated via AI product recognition, and every transaction is securely settled and traced on the Polygon blockchain.
+BANTAYOG transforms loose cash grants into targeted, tracked, nutrition-locked subsidies. Guardians are given a physical QR "Nutri-Pass" that acts as an offline digital wallet. Subsidies can only be spent on nutrient-dense foods at local sari-sari stores, validated via AI product recognition, and every transaction is securely settled and traced on the Stellar network.
 
 **The intended users or beneficiaries**
 
@@ -93,7 +93,7 @@ flowchart LR
     B6["Settle the sale:<br/>credits out, store paid"]
   end
 
-  subgraph Chain["Polygon Amoy network"]
+  subgraph Chain["Stellar testnet"]
     C1["Record the payment<br/>on the public ledger"]
   end
 
@@ -168,9 +168,10 @@ the LGU portal, and the guardian page shows information only.
 printed Nutri-Pass issue.
 - **Store app.** AI product scan, branded and palengke baskets, guardian PIN with lockout,
 checkout, and the sales history.
-- **Merchant cash-out.** The merchant connects a wallet and moves the store balance out on demand.
+- **Merchant balance view.** The merchant sees their live on-chain PHPC balance, read directly
+from the Stellar network; there is no cash-out or wallet-connect step.
 - **Guardian balance page.** The current balance plus the 50 most recent purchases, read-only.
-- **Public ledger record.** PHPC credits on the Polygon Amoy network, plus a nightly tier re-check.
+- **Public ledger record.** PHPC credits on the Stellar network, plus a nightly tier re-check.
 - **Android mobile app of the store surface.** The merchant frontend installs on the phone as an
 Android app.
 
@@ -188,7 +189,7 @@ Android app.
 | **API and business rules**     | Hono 4 on Node, Zod 4 at every boundary, neverthrow result types, pino structured logs, XState lifecycle model                                 | Every request is parsed before it is trusted, and every expected failure is a typed value with a stable status code.                                                                         |
 | **Data**                       | Supabase Postgres, pgvector image embeddings, pg_trgm fuzzy matching, append-only migrations, row-level security                               | The database itself holds the money rules: one guarded settlement step, a row lock, and constraints that make a bad row impossible.                                                          |
 | **Abuse control**              | Upstash Redis sliding windows                                                                                                                  | Guardian PIN lockout and per-endpoint limits on login, scanning, and checkout.                                                                                                               |
-| **Blockchain**                 | Polygon Amoy testnet (chain 80002), PHPC PHP-pegged ERC-20, upgradeable PHPCSubsidy (UUPS), Solidity 0.8.28, OpenZeppelin 5, Hardhat 3, viem 2 | A public settlement record for every peso, plus an upgrade path that keeps the storage layout intact.                                                                                        |
+| **Blockchain**                 | Stellar testnet, classic Stellar asset (PHPC, 7 decimals) with issuer flags (AUTH_REQUIRED, AUTH_REVOCABLE, AUTH_CLAWBACK_ENABLED), @stellar/stellar-sdk 16 | A public settlement record for every peso via native payment operations, with no custom bookkeeping contract to get wrong. |
 | **Cryptography**               | Argon2id guardian PINs, signed JWS pass tokens, AES-256-GCM key storage                                                                        | The paper pass is a real credential, and no secret is ever readable at rest.                                                                                                                 |
 | **Monorepo and quality gate**  | pnpm 9 workspace, Turborepo 2, Vitest 2, fast-check property tests, DTO snapshot contracts                                                     | Lint with zero warnings, a full type-check, and the test suite gate every change.                                                                                                            |
 
@@ -198,7 +199,8 @@ Android app.
 ## Getting Started
 
 **Prerequisites:** Node ≥ 20, pnpm 9.15.0 (pinned — do not use npm or yarn), a Supabase project,
-an Upstash Redis database, a Gemini API key, and a Polygon Amoy RPC URL with a zero-value testnet key.
+an Upstash Redis database, a Gemini API key, and Stellar testnet accounts (created by the
+bootstrap script below; no manual setup needed beyond internet access to Horizon testnet).
 
 ```bash
 # 1. install
@@ -211,9 +213,8 @@ cp apps/web/.env.example apps/web/.env.local
 
 # 3. database — apply supabase/migrations/*.sql in order to your project
 
-# 4. contracts (optional; addresses go back into .env)
-pnpm --filter @bantayog/contracts compile
-pnpm deploy:contracts                         # Hardhat → Polygon Amoy
+# 4. Stellar asset bootstrap (issues PHPC, sets issuer flags, funds distribution)
+pnpm bootstrap:stellar                        # idempotent; safe to re-run after a testnet reset
 
 # 5. run — web on :3000, API on :3001
 pnpm dev
@@ -228,7 +229,6 @@ pnpm test            # vitest in every package
 
 pnpm --filter @bantayog/server test
 pnpm --filter @bantayog/web test
-pnpm --filter @bantayog/contracts test        # includes UUPS storage-layout tests
 ```
 
 ---

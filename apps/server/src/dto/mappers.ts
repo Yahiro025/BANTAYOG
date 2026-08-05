@@ -21,6 +21,16 @@ export interface BeneficiaryDTO {
   jwsCompact?: string
 }
 
+// Admin-facing merchant DTO, mapped from a raw `merchants` row.
+// `walletBalance` is `merchants.wallet_balance`, a cumulative record of
+// settled sales credited by `settle_sale` (ground rule 1: that RPC is
+// unchanged). Per ADR 004 decision D3, this is NO LONGER a withdrawable
+// custodial liability once Phase 6 ships — the merchant's actual spendable
+// PHPC lives on-chain and is read live from Horizon by
+// `GET /api/merchants/me` (see `routes/merchant-self.ts`), not from this
+// column. Kept as `string` (not `number`) to match `packages/schema`'s
+// `MerchantDto.walletBalance` and avoid float precision loss, consistent
+// with every other on-chain-adjacent amount in this codebase.
 export interface MerchantDTO {
   id: string
   authUserId: string
@@ -28,7 +38,7 @@ export interface MerchantDTO {
   ownerName: string
   mobileNumberE164: string
   walletAddress: string | null
-  walletBalance: number
+  walletBalance: string
   status: string
   createdAt: string
 }
@@ -80,14 +90,12 @@ export interface WalletBalanceDTO {
   formatted: string
 }
 
-/**
- * Read-only transaction entry for the QR-token-authorized balance view
- * (Requirement 8.5). Deliberately narrower than `TransactionDTO`: it omits
- * `merchantId`, `items`, `stablecoinAmountWei`, and `idempotencyKey` since
- * this is a PUBLIC, unauthenticated page and those fields are not
- * appropriate to expose, and it exposes no field that could be used to
- * create, modify, or deduct a balance.
- */
+// Read-only transaction entry for the QR-token-authorized balance view
+// (Requirement 8.5). Deliberately narrower than `TransactionDTO`: it omits
+// `merchantId`, `items`, `stablecoinAmountWei`, and `idempotencyKey` since
+// this is a PUBLIC, unauthenticated page and those fields are not
+// appropriate to expose, and it exposes no field that could be used to
+// create, modify, or deduct a balance.
 export interface BalanceViewTransactionDTO {
   amount: number
   status: string
@@ -96,11 +104,9 @@ export interface BalanceViewTransactionDTO {
   confirmedAt: string | null
 }
 
-/**
- * Read-only balance + transaction-history shape returned by
- * `GET /api/balance/view` (Requirements 8.2, 8.4, 8.5). Contains no
- * mutating fields/actions and is scoped to a single beneficiary.
- */
+// Read-only balance + transaction-history shape returned by
+// `GET /api/balance/view` (Requirements 8.2, 8.4, 8.5). Contains no
+// mutating fields/actions and is scoped to a single beneficiary.
 export interface BalanceViewDTO {
   beneficiaryName: string
   balance: number
@@ -162,7 +168,15 @@ export function toMerchantDTO(row: any): MerchantDTO {
     ownerName: row.owner_name,
     mobileNumberE164: row.mobile_number_e164,
     walletAddress: row.wallet_address ?? null,
-    walletBalance: Number(row.wallet_balance ?? 0),
+    // wallet_balance is NUMERIC(12,2) in Postgres; the driver may already
+    // return it as a string. Normalize either shape to a fixed 2-decimal
+    // string rather than routing through Number(), which both loses the
+    // "this is exact money" guarantee and is inconsistent with
+    // packages/schema's MerchantDto.walletBalance (z.string()).
+    walletBalance:
+      row.wallet_balance === null || row.wallet_balance === undefined
+        ? '0.00'
+        : String(row.wallet_balance),
     status: row.status,
     createdAt: row.created_at
   }

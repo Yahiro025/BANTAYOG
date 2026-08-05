@@ -1,5 +1,0 @@
-// Hardhat Ignition placeholder module — exists only so the ignition/ directory
-// is committed in P1 scaffold. Real deploy modules land in P2 (T-2.4 onwards).
-// See packages/contracts/ignition/ for the actual deploy modules.
-//
-// BE2 owns this directory. See BANTAYOG_TEAM_ROLES.md §D for task assignments.

@@ -1,6 +1,5 @@
-// ---------------------------------------------------------------------------
+
 // Quantity Selector — minus/plus buttons with numeric display
-// ---------------------------------------------------------------------------
 
 interface QuantitySelectorProps {
   value: number;

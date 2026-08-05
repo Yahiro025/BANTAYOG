@@ -1,7 +1,6 @@
-// ---------------------------------------------------------------------------
+
 // Three-step progress indicator for AI Image Scan flow
 // Steps: Capture → Review → Add to Cart
-// ---------------------------------------------------------------------------
 
 interface Step {
   label: string;

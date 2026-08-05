@@ -181,8 +181,6 @@ export function MerchantRegistrationForm({
           )}
         </div>
 
-
-
         {/* Create Password + Confirm Password */}
         <div className="grid grid-cols-2 gap-4">
           <div>

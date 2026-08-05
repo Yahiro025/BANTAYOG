@@ -33,8 +33,8 @@ exports[`DTO Mappers Snapshot Tests > should correctly map a merchant record 1`]
   "ownerName": "Pedro Santos",
   "status": "APPROVED",
   "storeName": "Santos Sari-Sari Store",
-  "walletAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-  "walletBalance": 0,
+  "walletAddress": "GANQ4X5FDIREJPH6LR5YCC5ODMSACA5T6Q54F7EF6BGO55M7R6AQIP52",
+  "walletBalance": "190.00",
 }
 `;
 

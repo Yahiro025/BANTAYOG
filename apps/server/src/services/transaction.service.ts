@@ -13,9 +13,7 @@ export class TransactionService {
     this.transactionRepo = new TransactionRepository(db)
   }
 
-  /**
-   * Atomically creates a transaction and an outbox entry.
-   */
+  // Atomically creates a transaction and an outbox entry.
   async createTransaction(dto: {
     beneficiaryId: string
     merchantId: string
@@ -85,9 +83,7 @@ export class TransactionService {
     }
   }
 
-  /**
-   * Retrieves a single transaction by ID.
-   */
+  // Retrieves a single transaction by ID.
   async getTransaction(id: string): Promise<AppResult<any>> {
     try {
       const record = await this.transactionRepo.findById(id)
@@ -100,9 +96,7 @@ export class TransactionService {
     }
   }
 
-  /**
-   * Lists transactions with optional filters.
-   */
+  // Lists transactions with optional filters.
   async listTransactions(filters: {
     merchantId?: string
     beneficiaryId?: string
@@ -147,9 +141,7 @@ export class TransactionService {
     }
   }
 
-  /**
-   * Updates transaction status.
-   */
+  // Updates transaction status.
   async updateStatus(
     id: string,
     status: TransactionStatus,
@@ -171,23 +163,20 @@ export class TransactionService {
     }
   }
 
-  /**
-   * Compensating action (Requirement 7.10): restores a beneficiary's
-   * recorded `credit_balance` by `amount` and records the discrepancy for
-   * manual reconciliation.
-   *
-   * This is a defensive safety net. Today's live purchase route
-   * (`src/routes/transactions.ts`, Task 11.2) deducts the beneficiary's
-   * balance only *after* the on-chain PHPC transfer has already been
-   * confirmed, so the "transfer fails after balance was deducted" scenario
-   * described by Requirement 7.10 cannot currently occur on that path — the
-   * system prevents the inconsistency by construction rather than needing to
-   * repair it after the fact. This method exists so that any future or
-   * legacy code path which creates an outbox entry with the balance
-   * already deducted (the old deduct-then-settle ordering) still has a
-   * correct, reusable way to restore the balance and surface the
-   * discrepancy for manual review.
-   */
+  // Compensating action (Requirement 7.10): restores a beneficiary's
+// recorded `credit_balance` by `amount` and records the discrepancy for
+// manual reconciliation.
+// This is a defensive safety net. Today's live purchase route
+// (`src/routes/transactions.ts`, Task 11.2) deducts the beneficiary's
+// balance only *after* the on-chain PHPC transfer has already been
+// confirmed, so the "transfer fails after balance was deducted" scenario
+// described by Requirement 7.10 cannot currently occur on that path — the
+// system prevents the inconsistency by construction rather than needing to
+// repair it after the fact. This method exists so that any future or
+// legacy code path which creates an outbox entry with the balance
+// already deducted (the old deduct-then-settle ordering) still has a
+// correct, reusable way to restore the balance and surface the
+// discrepancy for manual review.
   async restoreBeneficiaryBalance(
     beneficiaryId: string,
     amount: number,

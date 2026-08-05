@@ -1,48 +1,37 @@
-/**
- * QR Scanner
- *
- * Browser-side QR scanner using html5-qrcode — significantly faster than
- * @zxing/browser because it uses the browser's native BarcodeDetector API
- * where available and falls back to a WASM decoder.
- *
- * Accesses the device camera via getUserMedia — must be client-only.
- *
- * FE2 ownership — @bantayog/web
- */
+// QR Scanner
+// Browser-side QR scanner using html5-qrcode — significantly faster than
+// @zxing/browser because it uses the browser's native BarcodeDetector API
+// where available and falls back to a WASM decoder.
+// Accesses the device camera via getUserMedia — must be client-only.
+// FE2 ownership — @bantayog/web
 
 "use client";
 
 export interface ScanResult {
-  /** Decoded text content of the QR code */
+  // Decoded text content of the QR code
   text: string;
-  /** QR code format (e.g. "QR_CODE") */
+  // QR code format (e.g. "QR_CODE")
   format: string;
 }
 
 export type ScanCallback = (result: ScanResult) => void;
 export type ScanErrorCallback = (error: Error) => void;
 
-/**
- * Manages camera-based QR scanning lifecycle using html5-qrcode.
- *
- * Unlike the old @zxing/browser implementation, html5-qrcode injects its
- * own <video> element into the provided container div, handles getUserMedia
- * internally, and scans far more efficiently by leveraging native browser
- * APIs where available.
- *
- * Usage:
- *   1. Render a <div id="qr-reader" /> in your component.
- *   2. Call scanner.start("qr-reader", onResult, onError).
- *   3. Call scanner.stop() on cleanup.
- */
+// Manages camera-based QR scanning lifecycle using html5-qrcode.
+// Unlike the old @zxing/browser implementation, html5-qrcode injects its
+// own <video> element into the provided container div, handles getUserMedia
+// internally, and scans far more efficiently by leveraging native browser
+// APIs where available.
+// Usage:
+// 1. Render a <div id="qr-reader" /> in your component.
+// 2. Call scanner.start("qr-reader", onResult, onError).
+// 3. Call scanner.stop() on cleanup.
 export class QRScanner {
   private scanner: import("html5-qrcode").Html5Qrcode | null = null;
   private isScanning = false;
 
-  /**
-   * Start scanning from the given container element ID.
-   * html5-qrcode injects and manages the video element internally.
-   */
+  // Start scanning from the given container element ID.
+// html5-qrcode injects and manages the video element internally.
   async start(
     containerId: string,
     onResult: ScanCallback,
@@ -97,7 +86,7 @@ export class QRScanner {
           this.isScanning = true;
           return;
         } catch {
-          /* fall through */
+          // fall through
         }
       }
 
@@ -108,7 +97,7 @@ export class QRScanner {
     }
   }
 
-  /** Stop scanning and release the camera stream. */
+  // Stop scanning and release the camera stream.
   async stop(): Promise<void> {
     if (!this.isScanning || !this.scanner) return;
     this.isScanning = false;
@@ -116,12 +105,12 @@ export class QRScanner {
       await this.scanner.stop();
       this.scanner.clear();
     } catch {
-      /* ignore errors on stop — camera may have already been released */
+      // ignore errors on stop — camera may have already been released
     }
     this.scanner = null;
   }
 
-  /** Check if the scanner is currently active */
+  // Check if the scanner is currently active
   get scanning(): boolean {
     return this.isScanning;
   }

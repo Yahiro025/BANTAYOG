@@ -1,13 +1,9 @@
-/**
- * Environment variable resolution with sensible fallbacks for local dev.
- *
- * Server-side env vars are read from process.env. When a server-side var
- * is missing, we fall back to its NEXT_PUBLIC_ counterpart (already in
- * .env.local) so the backend works out of the box during development.
- *
- * Missing required vars throw with a clear message so the developer knows
- * exactly what to add to .env.local.
- */
+// Environment variable resolution with sensible fallbacks for local dev.
+// Server-side env vars are read from process.env. When a server-side var
+// is missing, we fall back to its NEXT_PUBLIC_ counterpart (already in
+// .env.local) so the backend works out of the box during development.
+// Missing required vars throw with a clear message so the developer knows
+// exactly what to add to .env.local.
 
 import crypto from "crypto";
 
@@ -29,9 +25,7 @@ function requireEnv(name: string, hint?: string): string {
   );
 }
 
-// ---------------------------------------------------------------------------
 // Supabase
-// ---------------------------------------------------------------------------
 
 export function getSupabaseUrl(): string {
   return requireEnv("SUPABASE_URL", "Use NEXT_PUBLIC_SUPABASE_URL as fallback");
@@ -48,9 +42,7 @@ export function getSupabaseAnonKey(): string {
   return requireEnv("SUPABASE_ANON_KEY", "Use NEXT_PUBLIC_SUPABASE_ANON_KEY as fallback");
 }
 
-// ---------------------------------------------------------------------------
 // Blockchain
-// ---------------------------------------------------------------------------
 
 export function getDeployerPrivateKey(): `0x${string}` {
   const key =
@@ -88,9 +80,7 @@ export function getMerchantRegistryAddress(): `0x${string}` {
   ) as `0x${string}`;
 }
 
-// ---------------------------------------------------------------------------
 // Auth / JWT
-// ---------------------------------------------------------------------------
 
 let _jwtSecret: string | undefined;
 export function getJwtSecret(): string {

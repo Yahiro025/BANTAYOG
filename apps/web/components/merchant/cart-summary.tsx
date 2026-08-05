@@ -1,7 +1,6 @@
-// ---------------------------------------------------------------------------
+
 // Cart Summary — shows eligible items breakdown and totals
 // Used in AI Scan result (Stage 3) and Checkout page
-// ---------------------------------------------------------------------------
 
 import { useCartStore } from "@/stores/cart-store";
 

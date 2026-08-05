@@ -4,9 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { authFetch } from "@/lib/api";
 import Link from "next/link";
 
-// ---------------------------------------------------------------------------
 // Recent Transactions List — embedded in dashboard (ref: 13.png)
-// ---------------------------------------------------------------------------
 
 interface TransactionItem {
   category: string;

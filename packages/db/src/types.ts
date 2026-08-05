@@ -79,12 +79,23 @@ export interface BeneficiaryWalletRow {
   created_at: string
 }
 
+export interface MerchantWalletRow {
+  merchant_id: string
+  address: string
+  enc_ciphertext: string
+  enc_iv: string
+  enc_auth_tag: string
+  created_at: string
+}
+
 export interface AllocationRow {
   id: string
   beneficiary_id: string
   tier: 1 | 2
   amount_phpc: number
   onchain_tx_hash: string | null
+  /** Stellar ledger sequence where the allocation confirmed (migration 00012, F7). */
+  ledger_sequence: number | null
   reconciled: boolean
   allocated_at: string
 }
@@ -96,7 +107,11 @@ export interface TransactionRow {
   item_list_jsonb: Record<string, unknown>[]
   total_credit_deducted: number
   stablecoin_amount_wei: string
+  /** Stellar stroops amount, parallel to stablecoin_amount_wei (migration 00012). */
+  asset_amount_stroops: string | null
   onchain_tx_hash: string | null
+  /** Stellar ledger sequence where the settlement confirmed (migration 00012, F7). */
+  ledger_sequence: number | null
   idempotency_key: string
   status: TransactionStatus
   created_at: string
@@ -200,13 +215,21 @@ export interface Database {
           Omit<BeneficiaryWalletRow, 'beneficiary_id' | 'created_at'>
         >
       }
+      merchant_wallets: {
+        Row: MerchantWalletRow
+        Insert: Omit<MerchantWalletRow, 'created_at'>
+        Update: Partial<
+          Omit<MerchantWalletRow, 'merchant_id' | 'created_at'>
+        >
+      }
       allocations: {
         Row: AllocationRow
         Insert: Omit<
           AllocationRow,
-          'id' | 'reconciled' | 'allocated_at'
+          'id' | 'reconciled' | 'allocated_at' | 'ledger_sequence'
         > & {
           reconciled?: boolean
+          ledger_sequence?: number | null
         }
         Update: Partial<Omit<AllocationRow, 'id' | 'allocated_at'>>
       }
@@ -221,12 +244,16 @@ export interface Database {
           | 'confirmed_at'
           | 'total_credit_deducted'
           | 'stablecoin_amount_wei'
+          | 'asset_amount_stroops'
+          | 'ledger_sequence'
         > & {
           status?: TransactionStatus
           onchain_tx_hash?: string | null
           confirmed_at?: string | null
           total_credit_deducted?: number
           stablecoin_amount_wei?: string
+          asset_amount_stroops?: string | null
+          ledger_sequence?: number | null
         }
         Update: Partial<Omit<TransactionRow, 'id' | 'created_at'>>
       }

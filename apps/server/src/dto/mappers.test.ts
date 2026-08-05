@@ -46,7 +46,8 @@ describe('DTO Mappers Snapshot Tests', () => {
       store_name: 'Santos Sari-Sari Store',
       owner_name: 'Pedro Santos',
       mobile_number_e164: '+639171234567',
-      wallet_address: '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266',
+      wallet_address: 'GANQ4X5FDIREJPH6LR5YCC5ODMSACA5T6Q54F7EF6BGO55M7R6AQIP52',
+      wallet_balance: '190.00',
       status: 'APPROVED',
       created_at: '2026-07-01T12:00:00.000Z'
     }

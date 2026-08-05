@@ -4,9 +4,7 @@ import { useState, useCallback } from "react";
 import { pickWallet } from "@/lib/chain/wallet-adapter";
 import { authFetch } from "@/lib/api";
 
-// ---------------------------------------------------------------------------
 // Wallet Balance Card — matches the dark teal card in merchantPages/13.png
-// ---------------------------------------------------------------------------
 
 interface WalletBalanceCardProps {
   /** PHPC balance (numeric) */

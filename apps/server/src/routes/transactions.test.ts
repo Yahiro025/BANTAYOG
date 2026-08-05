@@ -3,29 +3,21 @@ import fc from 'fast-check'
 import { ok, err } from 'neverthrow'
 import { JwtError, RateLimitError } from '../lib/errors.js'
 
-// ---------------------------------------------------------------------------
 // Mocks (declared before the mocked modules are imported, following the
 // pattern already used in ../e2e/transaction-flow.test.ts — vi.mock factories
 // are only invoked when the mocked module is actually resolved during the
 // import chain below, by which point these `let`/`const` bindings exist).
-// ---------------------------------------------------------------------------
 
 // Mock the Supabase auth client so `authMiddleware` resolves a merchant user
 // without making a real network call.
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({
-    auth: {
-      getUser: vi.fn().mockResolvedValue({
-        data: {
-          user: {
-            id: 'merchant-auth-id',
-            email: 'merchant@test.com',
-            app_metadata: { role: 'merchant' },
-          },
-        },
-      }),
-    },
-  })),
+vi.mock('jose', () => ({
+  jwtVerify: vi.fn().mockResolvedValue({
+    payload: {
+      sub: 'merchant-auth-id',
+      email: 'merchant@test.com',
+      app_metadata: { role: 'merchant' },
+    }
+  })
 }))
 
 // Controllable QrTokenService.verifyToken result, set per test.
@@ -44,22 +36,6 @@ vi.mock('../services/pin.service.js', () => ({
   })),
 }))
 
-// BlockchainClient is never expected to be reached by these tests (all 5
-// cases return before on-chain settlement), but the module is still
-// statically imported by transactions.ts, so it must be mocked to avoid any
-// accidental real network call if route ordering assumptions are wrong.
-vi.mock('../services/chain.client.js', () => ({
-  BlockchainClient: {
-    create: vi.fn().mockResolvedValue(
-      ok({
-        transferPHPC: vi.fn().mockResolvedValue(ok('0xhash')),
-        waitForConfirmation: vi.fn().mockResolvedValue(ok({})),
-      }),
-    ),
-  },
-}))
-
-// ---------------------------------------------------------------------------
 // Stateful Supabase DB mock. Originally only supported
 // from().select().eq().single() (what the 400/401/429 rejection-path tests
 // below need). Extended for Properties 18/19/20 (tasks 11.6-11.8) to also
@@ -70,7 +46,6 @@ vi.mock('../services/chain.client.js', () => ({
 // EXACTLY what the real route (transactions.ts) and TransactionService
 // (transaction.service.ts, via BaseRepository) call, method-by-method —
 // see those files for the call shapes this mirrors.
-// ---------------------------------------------------------------------------
 
 let merchantRow: any
 let beneficiaryRow: any
@@ -216,7 +191,7 @@ const mockSupabaseClient: any = {
     if (rpcError) {
       return { data: null, error: rpcError }
     }
-    if (fn === 'settle_sale') {
+    if (fn === 'settle_sale_and_enqueue') {
       const { p_beneficiary_id, p_merchant_id, p_amount, p_items, p_transaction_id } = args
       if (p_amount <= 0) {
         return { data: null, error: new Error('Amount must be greater than zero') }
@@ -266,9 +241,7 @@ vi.mock('../lib/supabase.js', () => ({
 
 const { app } = await import('../app.js')
 
-// ---------------------------------------------------------------------------
 // Test setup
-// ---------------------------------------------------------------------------
 
 const VALID_IDEMPOTENCY_KEY = 'a75f7823-3dbd-426c-8ab5-3e284b39e6a0'
 
@@ -423,10 +396,9 @@ describe('POST /api/transactions — HTTP response codes', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
 // Property 18: authorized in-balance purchase deducts and transfers the
 // exact amount (Requirements 7.6, 7.8)
-// ---------------------------------------------------------------------------
+
 describe('Property 18: authorized in-balance purchase deducts and transfers the exact amount (Requirements 7.6, 7.8)', () => {
   // Feature: polygon-amoy-phpc-migration, Property 18: Authorized in-balance purchase deducts and transfers the exact amount
   // Validates: Requirements 7.6, 7.8
@@ -463,7 +435,7 @@ describe('Property 18: authorized in-balance purchase deducts and transfers the 
 
         // Settle sale RPC was called
         expect(rpcCalls.length).toBe(1)
-        expect(rpcCalls[0].fn).toBe('settle_sale')
+        expect(rpcCalls[0].fn).toBe('settle_sale_and_enqueue')
         expect(rpcCalls[0].args.p_amount).toBe(creditCost)
 
         // The persisted transaction row's onchain_tx_hash is null in custodial model
@@ -479,10 +451,9 @@ describe('Property 18: authorized in-balance purchase deducts and transfers the 
   })
 })
 
-// ---------------------------------------------------------------------------
 // Property 19: invalid-amount and over-balance purchases are rejected
 // without balance change (Requirements 7.7, 7.9)
-// ---------------------------------------------------------------------------
+
 describe('Property 19: invalid-amount and over-balance purchases are rejected without balance change (Requirements 7.7, 7.9)', () => {
   // Feature: polygon-amoy-phpc-migration, Property 19: Invalid-amount and over-balance purchases are rejected without balance change
   // Validates: Requirements 7.7, 7.9
@@ -539,9 +510,8 @@ describe('Property 19: invalid-amount and over-balance purchases are rejected wi
   })
 })
 
-// ---------------------------------------------------------------------------
 // Property 22: An incorrect PIN never changes balances
-// ---------------------------------------------------------------------------
+
 describe('Property 22: An incorrect PIN never changes balances (Requirement 13.3)', () => {
   it('rejects with 401 and does not change balances or insert transaction on incorrect PIN', async () => {
     await fc.assert(

@@ -5,9 +5,7 @@ import { useRouter } from "next/navigation";
 import { MERCHANT_TOKEN_KEY, MERCHANT_REFRESH_TOKEN_KEY } from "@/lib/api";
 import { useCartStore } from "@/stores/cart-store";
 
-// ---------------------------------------------------------------------------
 // Inline validation schema (zod not available in web app dependencies)
-// ---------------------------------------------------------------------------
 
 interface LoginForm {
   phoneNumber: string;
@@ -35,9 +33,7 @@ function validate(form: LoginForm): FormErrors {
   return errors;
 }
 
-// ---------------------------------------------------------------------------
 // Merchant Login Page — matches merchantPages/12.png
-// ---------------------------------------------------------------------------
 
 export default function MerchantLoginPage() {
   const router = useRouter();

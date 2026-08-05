@@ -1,51 +1,41 @@
-# Smart Contract Operations Guide
+# Smart Contract Operations Guide (Superseded)
 
-This document describes deployment, upgrades, and operational parameters for BANTAYOG smart contracts.
+**Status: superseded.** BANTAYOG migrated from a Polygon Amoy smart-contract chain layer to
+Stellar classic assets (see `docs/adr/004-stellar-migration.md`). `packages/contracts` (the
+Solidity `PHPCSubsidy`/`PHPC`/`BeneficiaryRegistry`/`MerchantRegistry` package this document
+described) has been deleted as part of that migration's Phase 7 teardown. There is no on-chain
+contract to compile, deploy, or upgrade anymore.
 
-## Deployed Addresses
+This document is retained only as a historical pointer. For the current Stellar operations
+equivalent, see below.
 
-Contract addresses are configured inside `.env` in the root directory.
+## Current Stellar operations
 
-| Contract | Polygon Amoy Testnet |
-|---|---|
-| PHPC Token | *Configured on deploy* |
-| PHPCSubsidy (Proxy) | *Configured on deploy* |
-| BeneficiaryRegistry | *Configured on deploy* |
-| MerchantRegistry | *Configured on deploy* |
+PHPC is now a classic Stellar asset with issuer flags (`AUTH_REQUIRED`, `AUTH_REVOCABLE`,
+`AUTH_CLAWBACK_ENABLED`) rather than a bespoke bookkeeping contract, so there is no proxy,
+storage layout, or upgrade procedure to manage.
 
-## Compilation & Testing
-
-Compile contracts from the root workspace directory:
+**Asset bootstrap** (issuer/distribution/sponsor account creation, issuer flags, initial supply):
 ```bash
-pnpm --filter @bantayog/contracts compile
+pnpm bootstrap:stellar
 ```
+Idempotent and safe to re-run, including after a Stellar testnet reset. See
+`scripts/bootstrap-stellar.ts` and `docs/stellar-testnet.md` for the recorded addresses,
+transaction hashes, and explorer links.
 
-Run smart contract test suite:
+**Beneficiary/merchant account re-provisioning** (account creation, PHPC trustline, issuer
+authorization for existing rows, e.g. after a testnet reset):
 ```bash
-pnpm --filter @bantayog/contracts test
+pnpm provision:stellar
 ```
+See `scripts/provision-stellar-accounts.ts`.
 
-## Deployment Steps
+**Configuration**: Stellar environment variables (`STELLAR_HORIZON_URL`,
+`STELLAR_NETWORK_PASSPHRASE`, `PHPC_ASSET_CODE`, `PHPC_ISSUER_PUBLIC_KEY`, `PHPC_ISSUER_SECRET`,
+`PHPC_DISTRIBUTION_SECRET`, `STELLAR_SPONSOR_SECRET`) are validated together by
+`apps/server/src/lib/chain/config.ts`'s `loadChainConfig`. See the root `.env.example` and
+`apps/server/.env.example` for the full variable set.
 
-To deploy to Polygon Amoy Testnet:
-1. Make sure your `.env` contains the correct `DEPLOYER_PRIVATE_KEY` and `POLYGON_AMOY_RPC_URL`.
-2. Run the deployment script:
-   ```bash
-   pnpm deploy:contracts
-   ```
-   or directly via Hardhat:
-   ```bash
-   pnpm --filter @bantayog/contracts hardhat run scripts/deploy.ts --network amoy
-   ```
-
-## UUPS Upgrade Procedure
-
-The `PHPCSubsidy` contract implements the UUPS upgradeability pattern. To perform a contract upgrade safely:
-
-1. **Write V2 Contract**: Create the new implementation contract `PHPCSubsidyV2.sol` in `packages/contracts/contracts/`. Ensure all storage variable layouts exactly match the V1 contract to prevent storage slot collisions.
-2. **Write Upgrade Script**: Create an upgrade script using OpenZeppelin Upgrades library:
-   ```ts
-   const PHPCSubsidyV2 = await ethers.getContractFactory("PHPCSubsidyV2");
-   await upgrades.upgradeProxy(PROXY_ADDRESS, PHPCSubsidyV2);
-   ```
-3. **Execute Upgrade**: Run the script on the corresponding network.
+**Freeze and clawback**: Available via the issuer flags set at bootstrap
+(`AUTH_REVOCABLE`/`AUTH_CLAWBACK_ENABLED`), operable manually with the issuer key. There is
+currently no admin UI for this; see the runbook's "Explicitly out of scope" section.

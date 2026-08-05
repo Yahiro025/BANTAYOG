@@ -1,17 +1,10 @@
-/**
- * Wallet Adapter — Frontend Decision Tree
- *
- * Supports a single connection method:
- * 1. Injected EIP-1193 (MetaMask or any standard EVM injected provider)
- *
- * Targets Polygon Amoy with standard injected EVM wallets only.
- *
- * FE2-3.11 — @bantayog/web
- */
+// Wallet Adapter — Frontend Decision Tree
+// Supports a single connection method:
+// 1. Injected EIP-1193 (MetaMask or any standard EVM injected provider)
+// Targets Polygon Amoy with standard injected EVM wallets only.
+// FE2-3.11 — @bantayog/web
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 export type WalletMethod = "injected";
 
@@ -27,9 +20,7 @@ export interface WalletProvider {
   request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
 }
 
-// ---------------------------------------------------------------------------
 // Environment Detection
-// ---------------------------------------------------------------------------
 
 function getInjectedProvider(): WalletProvider | null {
   if (typeof window === "undefined") return null;
@@ -40,14 +31,10 @@ function getInjectedProvider(): WalletProvider | null {
   return null;
 }
 
-// ---------------------------------------------------------------------------
 // Connection Method
-// ---------------------------------------------------------------------------
 
-/**
- * Connect via injected EIP-1193 provider (MetaMask or any standard EVM wallet).
- * Requests account access and signs a message for proof of ownership.
- */
+// Connect via injected EIP-1193 provider (MetaMask or any standard EVM wallet).
+// Requests account access and signs a message for proof of ownership.
 async function connectInjected(): Promise<WalletConnection> {
   const provider = getInjectedProvider();
   if (!provider?.request) {
@@ -75,27 +62,21 @@ async function connectInjected(): Promise<WalletConnection> {
   return { method: "injected", address, proof, message };
 }
 
-// ---------------------------------------------------------------------------
 // Backend Verification Stub (BE2-3.7)
-// ---------------------------------------------------------------------------
 
 export interface BackendVerificationResult {
   verified: boolean;
   error?: string;
 }
 
-/**
- * Verify a wallet connection with the backend (BE2-3.7 wallet adapter gateway).
- *
- * TODO(BE2-3.7): replace with real endpoint once the backend wallet adapter
- * gateway is implemented. The function signature and return type are the
- * frontend-side contract — Backend 2 only needs to fill in the fetch URL
- * and handle the response shape.
- *
- * @param address - The wallet address to verify
- * @param proof   - Signed proof of ownership from personal_sign
- * @returns       - { verified: true } on success, { verified: false, error: "..." } on failure
- */
+// Verify a wallet connection with the backend (BE2-3.7 wallet adapter gateway).
+// TODO(BE2-3.7): replace with real endpoint once the backend wallet adapter
+// gateway is implemented. The function signature and return type are the
+// frontend-side contract — Backend 2 only needs to fill in the fetch URL
+// and handle the response shape.
+// @param address - The wallet address to verify
+// @param proof   - Signed proof of ownership from personal_sign
+// @returns       - { verified: true } on success, { verified: false, error: "..." } on failure
 export async function verifyWalletWithBackend(
   _address: string,
   _proof: string,
@@ -115,15 +96,10 @@ export async function verifyWalletWithBackend(
   return { verified: true };
 }
 
-// ---------------------------------------------------------------------------
 // Decision Tree
-// ---------------------------------------------------------------------------
 
-/**
- * Connect using the only supported method: an injected EIP-1193 provider.
- *
- * Returns the connection details or throws if no injected provider is found.
- */
+// Connect using the only supported method: an injected EIP-1193 provider.
+// Returns the connection details or throws if no injected provider is found.
 export async function pickWallet(): Promise<WalletConnection> {
   if (!getInjectedProvider()) {
     throw new Error("No injected wallet provider found");
@@ -131,18 +107,14 @@ export async function pickWallet(): Promise<WalletConnection> {
   return await connectInjected();
 }
 
-/**
- * Get available wallet methods for the current environment.
- * Used to render connection options in the UI.
- */
+// Get available wallet methods for the current environment.
+// Used to render connection options in the UI.
 export function getAvailableMethods(): WalletMethod[] {
   return getInjectedProvider() ? ["injected"] : [];
 }
 
-/**
- * Verify wallet connection with the backend.
- * Sends the address and proof to BE2-3.7's wallet adapter gateway (/api/auth/wallet-login).
- */
+// Verify wallet connection with the backend.
+// Sends the address and proof to BE2-3.7's wallet adapter gateway (/api/auth/wallet-login).
 export async function verifyWalletConnection(
   connection: WalletConnection,
 ): Promise<{ verified: boolean; session?: { accessToken: string; expiresAt: string }; user?: any; error?: string }> {

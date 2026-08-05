@@ -17,10 +17,8 @@ const registerMerchantSchema = CreateMerchantDto.extend({
   password: z.string().min(6)
 })
 
-/**
- * POST /api/merchants/register
- * Onboards a new merchant and registers them in Supabase Auth & DB
- */
+// POST /api/merchants/register
+// Onboards a new merchant and registers them in Supabase Auth & DB
 merchantRoutes.post('/register', zValidator('json', registerMerchantSchema), async (c) => {
   const dto = c.req.valid('json')
   const db = createServiceClient()
@@ -40,10 +38,8 @@ merchantRoutes.post('/register', zValidator('json', registerMerchantSchema), asy
   )
 })
 
-/**
- * GET /api/merchants
- * Lists all registered merchants (admin view)
- */
+// GET /api/merchants
+// Lists all registered merchants (admin view)
 merchantRoutes.get('/', async (c) => {
   const db = createServiceClient()
   const service = new MerchantService(db)
@@ -62,10 +58,8 @@ merchantRoutes.get('/', async (c) => {
   )
 })
 
-/**
- * PATCH /api/merchants/:id/approve
- * Approves a merchant (admin only).
- */
+// PATCH /api/merchants/:id/approve
+// Approves a merchant (admin only).
 merchantRoutes.patch('/:id/approve', async (c) => {
   const id = c.req.param('id')
   const db = createServiceClient()
@@ -79,10 +73,8 @@ merchantRoutes.patch('/:id/approve', async (c) => {
   )
 })
 
-/**
- * PATCH /api/merchants/:id/status
- * Updates a merchant's status (admin only).
- */
+// PATCH /api/merchants/:id/status
+// Updates a merchant's status (admin only).
 merchantRoutes.patch('/:id/status', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()

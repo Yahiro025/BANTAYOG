@@ -1,14 +1,10 @@
-/**
- * Auth middleware — verifies Supabase JWT.
- *
- * BE1 owns this file. Extracts the Bearer token from the Authorization
- * header and verifies it against Supabase Auth. Attaches the user's
- * identity to Hono context for downstream handlers.
- *
- * Public routes (/health) skip this middleware.
- */
+// Auth middleware — verifies Supabase JWT.
+// BE1 owns this file. Extracts the Bearer token from the Authorization
+// header and verifies it against Supabase Auth. Attaches the user's
+// identity to Hono context for downstream handlers.
+// Public routes (/health) skip this middleware.
 import { createMiddleware } from 'hono/factory'
-import { createClient } from '@supabase/supabase-js'
+import { jwtVerify } from 'jose'
 import type { Env } from '../types/env.js'
 
 // Polyfill WebSocket for Node.js < 22 to prevent Supabase createClient from crashing
@@ -17,9 +13,7 @@ if (typeof globalThis.WebSocket === 'undefined') {
   globalThis.WebSocket = class DummyWebSocket {} as any
 }
 
-// ---------------------------------------------------------------------------
 // Context augmentation
-// ---------------------------------------------------------------------------
 
 export interface AuthContext {
   user: {
@@ -29,15 +23,11 @@ export interface AuthContext {
   } | null
 }
 
-// ---------------------------------------------------------------------------
 // Middleware
-// ---------------------------------------------------------------------------
 
-/**
- * Verifies the Supabase JWT from the Authorization header.
- * Attaches user info to c.set('user', ...) on success.
- * Returns 401 if the token is missing or invalid.
- */
+// Verifies the Supabase JWT from the Authorization header.
+// Attaches user info to c.set('user', ...) on success.
+// Returns 401 if the token is missing or invalid.
 export const authMiddleware = createMiddleware<{
   Bindings: Env
   Variables: AuthContext
@@ -52,45 +42,31 @@ export const authMiddleware = createMiddleware<{
 
   const token = authHeader.slice(7)
 
-  // Verify the JWT via Supabase auth.getUser()
-  // This delegates verification to Supabase's JWT validation
+  // Verify the JWT locally to avoid network latency and connection exhaustion
   try {
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseKey) {
-      console.error("Auth Middleware Error: Missing Supabase environment variables in backend!");
+    const jwtSecret = process.env.JWT_SIGNING_SECRET || (process.env.NODE_ENV === 'test' ? 'test-secret-test-secret-test-secret-test-secret' : null);
+    if (!jwtSecret) {
+      console.error("Auth Middleware Error: Missing JWT_SIGNING_SECRET");
+      c.set('user', null);
+      await next();
+      return;
     }
 
-    const supabase = createClient(
-      supabaseUrl!,
-      supabaseKey!,
-      {
-        auth: { autoRefreshToken: false, persistSession: false },
-        global: { headers: { Authorization: `Bearer ${token}` } },
-      },
-    )
+    const secret = new TextEncoder().encode(jwtSecret);
+    const { payload } = await jwtVerify(token, secret);
 
-    const {
-      data: { user },
-      error
-    } = await supabase.auth.getUser()
-
-    if (error) {
-      console.error("Supabase getUser error:", error.message)
-    }
-
-    if (user) {
+    if (payload && payload.sub) {
+      const appMetadata = (payload.app_metadata as Record<string, any>) || {};
       c.set('user', {
-        id: user.id,
-        email: user.email ?? '',
-        role: (user.app_metadata?.role as string) ?? 'unknown',
+        id: payload.sub,
+        email: (payload.email as string) ?? '',
+        role: (appMetadata.role as string) || (payload.role as string) || 'unknown',
       })
     } else {
       c.set('user', null)
     }
-  } catch (err) {
-    console.error("Auth Middleware Caught Exception:", err)
+  } catch (err: any) {
+    console.error("Auth Middleware JWT Error:", err.message)
     c.set('user', null)
   }
 

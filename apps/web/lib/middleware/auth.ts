@@ -1,18 +1,13 @@
-/**
- * Auth Middleware for Next.js API Routes
- *
- * Provides helpers to validate Supabase sessions from the Authorization header
- * and enforce role-based access control.
- */
+// Auth Middleware for Next.js API Routes
+// Provides helpers to validate Supabase sessions from the Authorization header
+// and enforce role-based access control.
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@bantayog/db";
 import { getSupabaseUrl, getSupabaseAnonKey } from "@/lib/env";
 import { type NextRequest, NextResponse } from "next/server";
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 export interface AuthUser {
   id: string;
@@ -20,9 +15,7 @@ export interface AuthUser {
   role: "admin" | "merchant" | "beneficiary";
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 export function createAuthClient(jwt: string): SupabaseClient<Database> {
   return createClient<Database>(getSupabaseUrl(), getSupabaseAnonKey(), {
@@ -31,10 +24,8 @@ export function createAuthClient(jwt: string): SupabaseClient<Database> {
   });
 }
 
-/**
- * Extract and verify the JWT from the Authorization header.
- * Returns the authenticated user or null.
- */
+// Extract and verify the JWT from the Authorization header.
+// Returns the authenticated user or null.
 export async function getAuthUser(
   request: NextRequest,
 ): Promise<AuthUser | null> {
@@ -65,9 +56,7 @@ export async function getAuthUser(
   }
 }
 
-/**
- * Require authentication. Returns 401 if not authenticated.
- */
+// Require authentication. Returns 401 if not authenticated.
 export async function requireAuth(
   request: NextRequest,
 ): Promise<AuthUser | NextResponse> {
@@ -81,9 +70,7 @@ export async function requireAuth(
   return user;
 }
 
-/**
- * Require admin role. Returns 403 if not admin.
- */
+// Require admin role. Returns 403 if not admin.
 export async function requireAdmin(
   request: NextRequest,
 ): Promise<AuthUser | NextResponse> {
@@ -99,9 +86,7 @@ export async function requireAdmin(
   return user;
 }
 
-/**
- * Require merchant or admin role.
- */
+// Require merchant or admin role.
 export async function requireMerchantOrAdmin(
   request: NextRequest,
 ): Promise<AuthUser | NextResponse> {

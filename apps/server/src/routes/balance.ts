@@ -7,33 +7,27 @@ import type { Env } from '../types/env.js'
 
 const balanceRoutes = new Hono<{ Bindings: Env }>()
 
-/** Maximum number of transaction history entries returned (Requirement 8.2). */
+// Maximum number of transaction history entries returned (Requirement 8.2).
 const MAX_TRANSACTION_HISTORY = 50
 
-/**
- * GET /api/balance/view?token=<qrToken>
- *
- * Read-only, PIN-less balance and transaction-history view reachable by
- * scanning a beneficiary's QR pass. Authorized solely by the signed QR
- * token (Requirement 8.3) — this route is intentionally PUBLIC and carries
- * no `authMiddleware`/`requireRole`.
- *
- * Precedence of failure handling (per Requirement 8.6, 8.7, 8.8, checked in
- * this order):
- *   1. Invalid/expired QR token -> deny access, withhold ALL data, "invalid
- *      pass" message (8.6). No beneficiary is resolved at this stage.
- *   2. Valid token but the encoded beneficiary/wallet cannot be resolved ->
- *      deny access, withhold data, distinct "cannot be matched" message
- *      (8.7).
- *   3. Balance/history retrieval failure -> withhold partial data, distinct
- *      "temporarily unavailable" message (8.8).
- *
- * On success, returns the current balance plus up to 50 Transaction_Record
- * entries, most-recent-first, scoped to that beneficiary only, with no
- * mutating fields/controls in the response (Requirements 8.2, 8.4, 8.5).
- *
- * Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8
- */
+// GET /api/balance/view?token=<qrToken>
+// Read-only, PIN-less balance and transaction-history view reachable by
+// scanning a beneficiary's QR pass. Authorized solely by the signed QR
+// token (Requirement 8.3) — this route is intentionally PUBLIC and carries
+// no `authMiddleware`/`requireRole`.
+// Precedence of failure handling (per Requirement 8.6, 8.7, 8.8, checked in
+// this order):
+// 1. Invalid/expired QR token -> deny access, withhold ALL data, "invalid
+// pass" message (8.6). No beneficiary is resolved at this stage.
+// 2. Valid token but the encoded beneficiary/wallet cannot be resolved ->
+// deny access, withhold data, distinct "cannot be matched" message
+// (8.7).
+// 3. Balance/history retrieval failure -> withhold partial data, distinct
+// "temporarily unavailable" message (8.8).
+// On success, returns the current balance plus up to 50 Transaction_Record
+// entries, most-recent-first, scoped to that beneficiary only, with no
+// mutating fields/controls in the response (Requirements 8.2, 8.4, 8.5).
+// Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8
 balanceRoutes.get('/view', async (c) => {
   const token = c.req.query('token')
 
@@ -57,12 +51,16 @@ balanceRoutes.get('/view', async (c) => {
 
   const db = createServiceClient()
 
-  // Check if the QR token is expired in the database
+  // Check if the QR token is expired or revoked in the database
   const { data: qrPass } = await (db as any)
     .from('qr_passes')
-    .select('expires_at')
+    .select('expires_at, revoked')
     .eq('beneficiary_id', beneficiaryId)
     .maybeSingle()
+
+  if (qrPass && qrPass.revoked) {
+    return c.json({ error: 'invalid_pass', message: 'This pass has been revoked' }, 403)
+  }
 
   if (qrPass && qrPass.expires_at && new Date(qrPass.expires_at) <= new Date()) {
     return c.json({ error: 'invalid_pass', message: 'This pass is invalid or has expired.' }, 401)
