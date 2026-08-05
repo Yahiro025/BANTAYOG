@@ -4,7 +4,7 @@
 // identity to Hono context for downstream handlers.
 // Public routes (/health) skip this middleware.
 import { createMiddleware } from 'hono/factory'
-import { jwtVerify } from 'jose'
+import { createServiceClient } from '../lib/supabase.js'
 import type { Env } from '../types/env.js'
 
 // Polyfill WebSocket for Node.js < 22 to prevent Supabase createClient from crashing
@@ -42,33 +42,26 @@ export const authMiddleware = createMiddleware<{
 
   const token = authHeader.slice(7)
 
-  // Verify the JWT locally to avoid network latency and connection exhaustion
   try {
-    const jwtSecret = process.env.JWT_SIGNING_SECRET || (process.env.NODE_ENV === 'test' ? 'test-secret-test-secret-test-secret-test-secret' : null);
-    if (!jwtSecret) {
-      console.error("Auth Middleware Error: Missing JWT_SIGNING_SECRET");
-      c.set('user', null);
-      await next();
-      return;
-    }
+    const db = createServiceClient()
+    const { data: { user }, error } = await db.auth.getUser(token)
 
-    const secret = new TextEncoder().encode(jwtSecret);
-    const { payload } = await jwtVerify(token, secret);
-
-    if (payload && payload.sub) {
-      const appMetadata = (payload.app_metadata as Record<string, any>) || {};
-      c.set('user', {
-        id: payload.sub,
-        email: (payload.email as string) ?? '',
-        role: (appMetadata.role as string) || (payload.role as string) || 'unknown',
-      })
-    } else {
+    if (error || !user) {
+      console.error("Auth Middleware Error:", error?.message || "User not found")
       c.set('user', null)
+    } else {
+      const appMetadata = user.app_metadata || {}
+      c.set('user', {
+        id: user.id,
+        email: user.email ?? '',
+        role: (appMetadata.role as string) || user.role || 'unknown',
+      })
     }
   } catch (err: any) {
     console.error("Auth Middleware JWT Error:", err.message)
     c.set('user', null)
   }
+
 
   await next()
 })

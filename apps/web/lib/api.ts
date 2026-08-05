@@ -35,43 +35,51 @@ export function clearMerchantToken(): void {
   clearPinHash();
 }
 
-async function refreshMerchantToken(refreshToken: string): Promise<string | null> {
+async function refreshMerchantToken(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  const refreshToken = window.localStorage.getItem(MERCHANT_REFRESH_TOKEN_KEY);
+  if (!refreshToken) return null;
+
   try {
     const res = await fetch("/api/auth/merchant-refresh", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken })
+      body: JSON.stringify({ refreshToken }),
     });
-    if (!res.ok) return null;
 
-    const body = await res.json().catch(() => null);
-    const newAccessToken = body?.session?.accessToken;
-    const newRefreshToken = body?.session?.refreshToken;
-    const expiresAt = body?.session?.expiresAt;
-
-    if (newAccessToken) {
-      window.localStorage.setItem(MERCHANT_TOKEN_KEY, newAccessToken);
-      if (newRefreshToken) {
-        window.localStorage.setItem(MERCHANT_REFRESH_TOKEN_KEY, newRefreshToken);
+    if (res.ok) {
+      const data = await res.json();
+      const newAccessToken = data.session?.accessToken;
+      const expiresAt = data.session?.expiresAt;
+      if (newAccessToken) {
+        window.localStorage.setItem(MERCHANT_TOKEN_KEY, newAccessToken);
+        // Only set expiry if the server provided one
+        if (expiresAt) {
+          window.localStorage.setItem(MERCHANT_TOKEN_KEY + "_expires", String(expiresAt));
+        } else {
+          window.localStorage.removeItem(MERCHANT_TOKEN_KEY + "_expires");
+        }
+        return newAccessToken;
       }
-      if (expiresAt) {
-        window.localStorage.setItem(MERCHANT_TOKEN_KEY + "_expires", String(expiresAt));
-      }
-      return newAccessToken;
     }
-  } catch (err) {
-    console.error("Failed to refresh merchant token:", err);
+    // If refresh failed, clear tokens so user is prompted to log in again
+    clearMerchantToken();
+    return null;
+  } catch {
+    clearMerchantToken();
+    return null;
   }
-  return null;
 }
 
 function isAdminEndpoint(url: string): boolean {
+  // Strip query parameters
   const pathname = url.split("?", 1)[0];
 
   // Explicitly merchant-only routes
   if (pathname.startsWith("/api/merchants/me")) return false;
   if (pathname.startsWith("/api/vision")) return false;
 
+  // These paths require LGU Admin (sessionToken)
   return (
     pathname.startsWith("/api/beneficiaries") ||
     pathname.startsWith("/api/merchants") ||
@@ -83,36 +91,23 @@ function isAdminEndpoint(url: string): boolean {
 }
 
 export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  let merchantToken: string | null = null;
-
-  // Merchant credentials are stored separately because merchant login does not
-  // create the admin Supabase browser session. Expired credentials are removed
-  // before any request can use them.
+  let merchantToken = null;
   if (typeof window !== "undefined") {
-    const storedToken = window.localStorage.getItem(MERCHANT_TOKEN_KEY);
-    const refreshToken = window.localStorage.getItem(MERCHANT_REFRESH_TOKEN_KEY);
-
-    if (storedToken && !isMerchantTokenExpired()) {
-      merchantToken = storedToken;
-    } else if (storedToken && isMerchantTokenExpired() && refreshToken) {
-      const refreshedToken = await refreshMerchantToken(refreshToken);
-      if (refreshedToken) {
-        merchantToken = refreshedToken;
-      } else {
-        clearMerchantToken();
-      }
-    } else if (storedToken && isMerchantTokenExpired() && !refreshToken) {
-      clearMerchantToken();
+    merchantToken = localStorage.getItem(MERCHANT_TOKEN_KEY);
+    
+    // Auto-refresh merchant token if expired
+    if (merchantToken && isMerchantTokenExpired()) {
+      const refreshed = await refreshMerchantToken();
+      merchantToken = refreshed; // null if refresh failed
     }
   }
 
-  let sessionToken: string | null = null;
+  const isAdmin = isAdminEndpoint(url);
+  let sessionToken = null;
 
-  // Admin endpoints must prefer the Supabase session when one exists. This
-  // prevents a stale merchant token from turning an authenticated admin page
-  // into a misleading 403/empty registry after switching portals.
-  // Merchant endpoints continue to prefer the merchant token.
-  if (!merchantToken || isAdminEndpoint(url)) {
+  // We only fetch the sessionToken if it's an admin endpoint, 
+  // or if there is no merchant token.
+  if (isAdmin || !merchantToken) {
     try {
       const { data } = await supabase.auth.getSession();
       sessionToken = data.session?.access_token ?? null;
@@ -121,9 +116,10 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
     }
   }
 
-  const token = isAdminEndpoint(url) && sessionToken
-    ? sessionToken
-    : merchantToken ?? sessionToken;
+  // Strict enforcement:
+  // - Admin endpoints MUST use sessionToken (even if null)
+  // - Merchant endpoints use merchantToken, or fallback to sessionToken
+  const token = isAdmin ? sessionToken : (merchantToken ?? sessionToken);
 
   const headers = {
     ...options.headers,
@@ -138,7 +134,5 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
     headers,
   });
 
-  // If we get 401 and have no way to refresh, the token truly expired.
-  // The error message in the caller will tell the user to log in again.
   return response;
 }
