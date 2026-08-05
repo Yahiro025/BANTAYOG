@@ -17,6 +17,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "."),
+      "@bantayog/schema/analytics": path.resolve(__dirname, "../../packages/schema/src/analytics.ts"),
       "@bantayog/schema": path.resolve(__dirname, "../../packages/schema/src/index.ts"),
       "@bantayog/db": path.resolve(__dirname, "../../packages/db/src/index.ts"),
     },

@@ -11,7 +11,8 @@
       "@/app/*": ["./app/*"],
       "@/hooks/*": ["./hooks/*"],
       "@bantayog/db": ["../../packages/db/src/index.ts"],
-      "@bantayog/schema": ["../../packages/schema/src/index.ts"]
+      "@bantayog/schema": ["../../packages/schema/src/index.ts"],
+      "@bantayog/schema/analytics": ["../../packages/schema/src/analytics.ts"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

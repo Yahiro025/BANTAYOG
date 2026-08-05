@@ -221,8 +221,9 @@ function NonBrandedContent() {
                       type="button"
                       onClick={capturePhoto}
                       className="absolute bottom-3 right-3 z-10 flex h-11 w-11 items-center justify-center"
+                      aria-label="Capture photo"
                     >
-                      <img src="/merchantLogos/camera2.png" alt="" className="h-10 w-10" />
+                      <img src="/merchantLogos/cam-logo.png" alt="" className="h-10 w-10" />
                     </button>
                   </>
                 )}

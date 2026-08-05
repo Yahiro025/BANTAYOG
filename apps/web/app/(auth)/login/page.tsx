@@ -252,7 +252,7 @@ export default function LoginPage() {
                 <input
                   id="login-email"
                   type="text"
-                  placeholder="paangmanok@metromanilacity.gov.ph"
+                  placeholder="juandelacruz@bantayog.gov.ph"
                   autoComplete="email"
                   {...register("email")}
                   className="w-full h-14 rounded-xl bg-white px-4 text-lg outline-none transition-all duration-200"
@@ -375,9 +375,9 @@ export default function LoginPage() {
           FOOTER BAR
           ═══════════════════════════════════ */}
       <footer
-        className="h-14 flex items-center justify-center w-full flex-shrink-0 bg-[#FFEBE5]"
+        className="h-14 flex items-center justify-center w-full flex-shrink-0 bg-admin-footer"
       >
-        <p className="text-[10px] sm:text-xs font-medium text-[#494949]">
+        <p className="text-[10px] sm:text-xs font-medium text-white/90">
           © 2026 BANTAYOG. All rights reserved.
         </p>
       </footer>

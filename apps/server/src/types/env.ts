@@ -40,4 +40,7 @@ export interface Env {
   // Optional
   CORS_ORIGIN?: string
   PORT?: string
+  // Admin analytics DPA export: the schema has no `district` column, so
+  // every export row is grouped under this single configured label.
+  LGU_DISTRICT_LABEL?: string
 }

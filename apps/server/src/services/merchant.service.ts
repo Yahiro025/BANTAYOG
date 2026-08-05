@@ -83,18 +83,24 @@ export class MerchantService {
     }
   }
 
-  // Returns a paginated list of merchants.
-  async list(page: number = 1, limit: number = 20): Promise<AppResult<{
+  /**
+   * Returns a paginated list of merchants.
+   */
+  async list(page: number = 1, limit: number = 20, summary: boolean = false): Promise<AppResult<{
     data: any[];
     count: number;
   }>> {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
+    // `summary` reads only the privacy-safe columns for the admin analytics
+    // tab, so owner names and mobile numbers are never loaded or returned.
+    const selectClause = summary ? 'id, status' : '*';
+
     try {
       const { data, count, error } = await (this.db as any)
         .from('merchants')
-        .select('*', { count: 'exact' })
+        .select(selectClause, { count: 'exact' })
         .range(from, to)
         .order('created_at', { ascending: false });
 

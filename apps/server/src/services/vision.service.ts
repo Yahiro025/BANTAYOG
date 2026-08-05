@@ -4,6 +4,7 @@ import { ProductsService } from './products.service.js'
 
 import { type AppResult, ok, err, ValidationError } from '../lib/errors.js'
 import { callGeminiWithFallback } from '../lib/gemini-client.js'
+import { recordVisionScan, recordScanOutcome } from '../lib/analytics-metrics.js'
 
 export interface CandidateResult {
   name: string
@@ -160,6 +161,14 @@ export class VisionService {
       }
     }
 
+    // AI Vision Performance widget (admin analytics tab): records the
+    // wall-clock latency and outcome of every scan attempt through this
+    // pipeline. "Success" means the pipeline returned a verdict
+    // (blurry/unrecognized/identified all count); only a thrown error below
+    // is recorded as a failure. There is no confidence-score field on the
+    // Gemini response, so none is recorded.
+    const scanStartedAt = Date.now()
+
     try {
       console.log('[VisionService] Running optimized single-step scan...')
       const prompt = `Analyze the product shown in this image.
@@ -220,6 +229,8 @@ Return JSON matching this schema:
       })
 
       if (result.status === 'blurry') {
+        void recordVisionScan({ success: true, latencyMs: Date.now() - scanStartedAt })
+        void recordScanOutcome({ approved: false, rejectionReason: 'blurry' })
         return ok({
           status: 'blurry',
           reasoning: 'Photo is too blurry to analyze — please retake the picture'
@@ -227,6 +238,8 @@ Return JSON matching this schema:
       }
 
       if (result.status === 'unrecognized') {
+        void recordVisionScan({ success: true, latencyMs: Date.now() - scanStartedAt })
+        void recordScanOutcome({ approved: false, rejectionReason: 'unrecognized' })
         return ok({
           status: 'unrecognized',
           productName: result.product_name || 'Unrecognized Brand',
@@ -250,10 +263,18 @@ Return JSON matching this schema:
         }
 
         const basePrice = result.researched_base_price || 50
+        const eligibilityStatus = dbProduct
+          ? dbProduct.eligibility_status
+          : (result.is_child_friendly ? 'eligible' : 'ineligible')
+        void recordVisionScan({ success: true, latencyMs: Date.now() - scanStartedAt })
+        void recordScanOutcome({
+          approved: eligibilityStatus === 'eligible',
+          rejectionReason: eligibilityStatus === 'eligible' ? undefined : 'ineligible',
+        })
         return ok({
           status: 'identified',
           productName: dbProduct ? dbProduct.name : pName,
-          eligibilityStatus: dbProduct ? dbProduct.eligibility_status : (result.is_child_friendly ? 'eligible' : 'ineligible'),
+          eligibilityStatus,
           isChildFriendly: dbProduct ? dbProduct.eligibility_status === 'eligible' : result.is_child_friendly,
           priceRangeMin: dbProduct ? Number(dbProduct.price_range_min) : Math.max(0, basePrice - 10),
           priceRangeMax: dbProduct ? Number(dbProduct.price_range_max) : basePrice + 10,
@@ -264,8 +285,12 @@ Return JSON matching this schema:
         })
       }
 
+      void recordVisionScan({ success: false, latencyMs: Date.now() - scanStartedAt })
+      void recordScanOutcome({ approved: false, rejectionReason: 'error' })
       return err(new ValidationError('Invalid status returned from Gemini API'))
     } catch (error: any) {
+      void recordVisionScan({ success: false, latencyMs: Date.now() - scanStartedAt })
+      void recordScanOutcome({ approved: false, rejectionReason: 'error' })
       console.error('Unified scan analysis failed:', error)
       const errMsg: string = error.message || ''
       if (errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('429')) {

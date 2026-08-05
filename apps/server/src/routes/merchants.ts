@@ -6,7 +6,7 @@ import { CreateMerchantDto } from '@bantayog/schema'
 import { createServiceClient } from '../lib/supabase.js'
 import { MerchantService } from '../services/merchant.service.js'
 import { type AuthContext } from '../middleware/auth.js'
-import { toMerchantDTO } from '../dto/mappers.js'
+import { toMerchantDTO, toAnalyticsMerchantSummaryDTO } from '../dto/mappers.js'
 import { errorToHttpStatus, errorToResponseBody } from '../lib/errors.js'
 import type { Env } from '../types/env.js'
 
@@ -46,12 +46,17 @@ merchantRoutes.get('/', async (c) => {
 
   const page = Number(c.req.query('page') || '1')
   const limit = Number(c.req.query('limit') || '20')
+  // `?summary=1` returns only { id, status } for the admin analytics tab, so
+  // owner names and mobile numbers never reach that surface.
+  const summary = c.req.query('summary') === '1'
 
-  const result = await service.list(page, limit)
+  const result = await service.list(page, limit, summary)
 
   return result.match(
     (res) => c.json({
-      data: res.data.map(toMerchantDTO),
+      data: summary
+        ? res.data.map(toAnalyticsMerchantSummaryDTO)
+        : res.data.map(toMerchantDTO),
       count: res.count
     }),
     (error) => c.json(errorToResponseBody(error), errorToHttpStatus(error))

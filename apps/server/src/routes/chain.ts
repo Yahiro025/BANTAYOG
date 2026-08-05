@@ -54,5 +54,4 @@ chainRoutes.post('/transfer', async (c) => {
     501,
   )
 })
-
 export default chainRoutes

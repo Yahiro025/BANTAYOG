@@ -15,6 +15,7 @@ import {
 import { StatusBar } from "@/components/admin/status-bar";
 import { TransactionsModal } from "@/components/admin/transactions-modal";
 import { AdminPasswordModal } from "@/components/admin/admin-password-modal";
+import { MetricCardSkeleton, RegistryPanelSkeleton } from "@/components/admin/skeleton";
 
 /* ─────────────────────────────────────────────────────────
    Merchants Page — mock 10.png. Read-only merchant directory.
@@ -46,11 +47,32 @@ interface Metrics {
 
 const PAGE_SIZE = 5;
 
+function describeListFailure(resource: string, result: PromiseSettledResult<Response>): string {
+  if (result.status === "rejected") {
+    return `${resource} could not be loaded because the API request failed before a response was received.`;
+  }
+
+  if (result.value.status === 401) {
+    return `${resource} could not be loaded (HTTP 401). Sign in with an LGU admin account.`;
+  }
+
+  if (result.value.status === 403) {
+    return `${resource} could not be loaded (HTTP 403). The current session is not an LGU admin.`;
+  }
+
+  if (result.value.status === 502) {
+    return `${resource} could not be loaded (HTTP 502). Start the local API with pnpm dev.`;
+  }
+
+  return `${resource} could not be loaded (HTTP ${result.value.status}).`;
+}
+
 export default function MerchantsPage() {
   const [merchants, setMerchants] = useState<MerchantRow[]>([]);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [lguBalance, setLguBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
 
@@ -83,6 +105,7 @@ export default function MerchantsPage() {
   /* ── Data fetching ── */
   const fetchAll = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [merchantRes, metricsRes, balRes] = await Promise.allSettled([
         authFetch("/api/merchants"),
@@ -92,7 +115,14 @@ export default function MerchantsPage() {
 
       if (merchantRes.status === "fulfilled" && merchantRes.value.ok) {
         const data = await merchantRes.value.json();
-        setMerchants(Array.isArray(data) ? data : (data.merchants ?? data.data ?? []));
+        const rows = Array.isArray(data) ? data : (data?.merchants ?? data?.data);
+        if (Array.isArray(rows)) {
+          setMerchants(rows);
+        } else {
+          setLoadError("Merchant registry returned an unexpected payload.");
+        }
+      } else {
+        setLoadError(describeListFailure("Merchant registry", merchantRes));
       }
 
       if (metricsRes.status === "fulfilled" && metricsRes.value.ok) {
@@ -105,6 +135,9 @@ export default function MerchantsPage() {
         const parsed = parseFloat(b?.formatted ?? b?.balance ?? "0");
         setLguBalance(isNaN(parsed) ? 0 : parsed);
       }
+    } catch (error) {
+      console.error("[admin/merchants] Failed to load registry data.", error);
+      setLoadError("Merchant registry could not be loaded. Check the local API server and your admin session.");
     } finally {
       setLoading(false);
     }
@@ -298,9 +331,10 @@ export default function MerchantsPage() {
       {/* ── Metric cards — same shell as beneficiaries page ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
+          loading={loading}
           label="BENEFICIARIES ONBOARDED"
           value={metrics?.totalBeneficiaries ?? "—"}
-          subtext="+1 this week"
+          subtext="Live registry count"
           subtextColor="text-green-600"
           icon={
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-brand-darkTeal/40">
@@ -309,6 +343,7 @@ export default function MerchantsPage() {
           }
         />
         <MetricCard
+          loading={loading}
           label="CRITICAL 1000-DAY UNITS"
           value={metrics?.criticalUnits ?? "—"}
           subtext="Requires urgent intervention"
@@ -321,6 +356,7 @@ export default function MerchantsPage() {
           }
         />
         <MetricCard
+          loading={loading}
           label="LGU TREASURY (MOCK PHPC)"
           value={
             lguBalance !== null
@@ -337,6 +373,7 @@ export default function MerchantsPage() {
           }
         />
         <MetricCard
+          loading={loading}
           label="VERIFIED MERCHANTS"
           value={metrics ? `${metrics.verifiedMerchants} Stores` : "—"}
           subtext="Secured via Polygon Amoy"
@@ -351,6 +388,16 @@ export default function MerchantsPage() {
 
       {/* ── Merchant Directory table ── */}
       <div className="bg-white rounded-2xl border border-brand-sageBorder/30 shadow-sm overflow-hidden">
+        {loading ? (
+          <RegistryPanelSkeleton
+            columns={columns.length}
+            pillColumns={[3, 4]}
+            rowClassName="px-6 py-4"
+            tableMinWidthClassName="min-w-[640px]"
+            ariaLabel="Loading merchant registry"
+          />
+        ) : (
+          <>
         {/* Table header row */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-brand-sageBorder/20">
           <div className="flex items-center gap-2.5">
@@ -400,15 +447,18 @@ export default function MerchantsPage() {
               ))}
             </thead>
             <tbody className="divide-y divide-brand-sageBorder/10">
-              {loading ? (
+              {loadError ? (
                 <tr>
                   <td colSpan={columns.length} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <svg className="animate-spin h-7 w-7 text-brand-activeTeal" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                      </svg>
-                      <p className="text-sm text-brand-darkTeal/40 font-semibold">Loading merchants…</p>
+                    <div className="flex flex-col items-center gap-4" role="alert">
+                      <p className="max-w-xl text-sm text-red-700 font-semibold">{loadError}</p>
+                      <button
+                        type="button"
+                        onClick={() => void fetchAll()}
+                        className="rounded-full bg-brand-coral px-5 py-2.5 text-xs font-bold text-white transition-all duration-200 hover:bg-brand-coralHover cursor-pointer"
+                      >
+                        Retry
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -435,8 +485,11 @@ export default function MerchantsPage() {
           </table>
         </div>
 
+        </>
+        )}
+
         {/* ── Dot-indicator pagination — matching mock 10.png ── */}
-        {pageCount > 1 && (
+        {!loading && pageCount > 1 && (
           <div className="flex items-center justify-center gap-3 py-5 border-t border-brand-sageBorder/10">
             <button
               onClick={() => table.previousPage()}
@@ -505,6 +558,7 @@ function MetricCard({
   icon,
   valueColor = "text-brand-darkTeal",
   valueLarge = false,
+  loading = false,
 }: {
   label: string;
   value: string | number;
@@ -513,7 +567,10 @@ function MetricCard({
   icon?: React.ReactNode;
   valueColor?: string;
   valueLarge?: boolean;
+  loading?: boolean;
 }) {
+  if (loading) return <MetricCardSkeleton />;
+
   return (
     <div className="bg-white rounded-2xl border border-brand-sageBorder/30 px-5 py-4 shadow-sm flex flex-col gap-2">
       <div className="flex items-start justify-between">

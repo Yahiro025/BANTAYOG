@@ -9,8 +9,11 @@ Philippine "First 1,000 Days" cohort (RA 11148). A guardian receives a printed Q
 instead of cash; credits can only be spent on child-appropriate food at approved sari-sari
 stores, and settlement is recorded on Polygon Amoy testnet using a mock PHPC token.
 
-Built for SparkFest 2026 (GDG on Campus – PUP) by a 4-person team. Hackathon-stage code:
-testnet only, demo-grade in places, but the architecture is real (see ADRs in `docs/adr/`).
+Built for SparkFest 2026 (GDG on Campus – PUP) by a 4-person team, and entered in the **Cryptita
+Plays Builder Showcase at WOCEE 2026** — live pitch on August 8, 2026 at SMX Convention Center
+Manila, submitted under the *Bayanihan Finance* category (event facts and stage scope live in
+`docs/SHOWCASE.md`). Hackathon-stage code: testnet only, demo-grade in places, but the
+architecture is real (see ADRs in `docs/adr/`).
 
 ## Three user surfaces (one Next.js app, sandboxed by hostname)
 

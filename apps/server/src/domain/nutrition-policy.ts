@@ -27,7 +27,36 @@ export function isCategoryEligible(category: string): boolean {
   return ELIGIBLE_CATEGORIES.includes(category.toLowerCase() as any);
 }
 
-// Gets the maximum monthly credit allocation for a given tier.
+/**
+ * Maps the 9-value nutrition category enum used by `transactions.item_list_jsonb`
+ * and `products.category` (see migration 00008) to a broader food-group label
+ * for the admin analytics tab ("Top Nutrient-Dense Items" widget). The schema
+ * has no separate `food_group` column, so this is the single source of truth
+ * for that classification rather than inventing a fake per-product value.
+ */
+export const CATEGORY_FOOD_GROUPS: Record<string, string> = {
+  FRUITS: 'Fruits & Vegetables',
+  VEGETABLES: 'Fruits & Vegetables',
+  MEATS: 'Protein Foods',
+  DAIRY: 'Dairy',
+  GRAINS: 'Grains & Cereals',
+  CANNED_GOODS: 'Protein Foods',
+  BEVERAGES: 'Beverages',
+  SNACKS: 'Snacks',
+  OTHER: 'Other',
+};
+
+/**
+ * Returns the food-group label for a nutrition category, defaulting to
+ * "Other" for any value outside the known enum instead of throwing.
+ */
+export function getFoodGroupLabel(category: string): string {
+  return CATEGORY_FOOD_GROUPS[category] ?? 'Other';
+}
+
+/**
+ * Gets the maximum monthly credit allocation for a given tier.
+ */
 export function getMonthlyLimit(tier: 1 | 2): number {
   return MONTHLY_CREDIT_LIMITS[tier];
 }

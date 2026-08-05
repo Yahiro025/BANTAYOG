@@ -103,16 +103,26 @@ export class TransactionService {
     status?: TransactionStatus
     page?: number
     limit?: number
+    /**
+     * When true, select only the privacy-safe analytics columns and skip the
+     * beneficiary/merchant joins entirely, so no PII is ever read from the
+     * database for this call. Used by `GET /api/transactions?summary=1`.
+     */
+    summary?: boolean
   } = {}): Promise<AppResult<{ data: any[]; count: number }>> {
     const page = filters.page ?? 1
     const limit = filters.limit ?? 20
     const from = (page - 1) * limit
     const to = from + limit - 1
 
+    const selectClause = filters.summary
+      ? 'id, merchant_id, total_amount, status, created_at'
+      : '*, beneficiaries(child_name, guardian_name, card_serial), merchants(store_name, owner_name, mobile_number_e164)'
+
     try {
       let query = this.db
         .from('transactions')
-        .select('*, beneficiaries(child_name, guardian_name, card_serial), merchants(store_name, owner_name, mobile_number_e164)', { count: 'exact' })
+        .select(selectClause, { count: 'exact' })
 
       if (filters.merchantId) {
         query = query.eq('merchant_id', filters.merchantId)

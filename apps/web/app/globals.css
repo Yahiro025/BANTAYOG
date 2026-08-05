@@ -38,6 +38,13 @@
   --color-route-active-bg: #D9C6C1;
   --color-route-active-text: #E07A65;
 
+  /* Shared Admin Shell Tokens */
+  --color-admin-header-start: #004B49;
+  --color-admin-header-end: #017075;
+  --color-admin-footer: #004B49;
+  --color-admin-header-active-bg: #FFFFFF;
+  --color-admin-header-active-text: #E07A65;
+
   /* Font Families */
   --font-title: "Intro Rust", system-ui, sans-serif;
   --font-body: "Poppins", sans-serif;
@@ -216,6 +223,31 @@ body {
 
 .animate-pulse-soft {
   animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-brand-sageBg) 45%, var(--color-surface)),
+    color-mix(in srgb, var(--color-brand-peachBg) 50%, var(--color-surface)),
+    color-mix(in srgb, var(--color-brand-sageBg) 45%, var(--color-surface))
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .animate-shimmer {
+    animation: none;
+  }
 }
 
 /* ---- Range Slider Overrides ---- */
