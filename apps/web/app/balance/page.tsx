@@ -34,7 +34,7 @@ type LoadState =
   | { kind: "ok"; data: BalanceView }
   | { kind: "error"; message: string };
 
-const POLYGONSCAN_TX = "https://amoy.polygonscan.com/tx/";
+const StellarSCAN_TX = "https://Testnet.Stellarscan.com/tx/";
 
 export default function BalancePage() {
   return (
@@ -176,7 +176,7 @@ function BalanceContent() {
                       </div>
                       {tx.onchainTxHash && (
                         <a
-                          href={`${POLYGONSCAN_TX}${tx.onchainTxHash}`}
+                          href={`${StellarSCAN_TX}${tx.onchainTxHash}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="mt-2 inline-flex items-center gap-1 font-body text-[11px] font-semibold text-[#017075] hover:underline"

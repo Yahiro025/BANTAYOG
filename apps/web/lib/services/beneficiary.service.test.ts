@@ -10,7 +10,7 @@ import {
 } from "./beneficiary.service";
 import type { CreateBeneficiaryDto } from "@bantayog/schema";
 
-// Mock chain clients to avoid viem env deps
+// Mock chain clients to avoid stellar-sdk env deps
 vi.mock("@/lib/chain/client", () => ({
   getPublicClient: () => ({
     readContract: vi.fn(() => Promise.resolve(BigInt(1_000_000 * 1e18))),
@@ -20,9 +20,9 @@ vi.mock("@/lib/chain/client", () => ({
     account: { address: "0x1234567890123456789012345678901234567890" },
     writeContract: vi.fn(() => Promise.resolve("0xtxhash")),
   }),
-  getHardhatChain: () => ({
-    id: 31337,
-    name: "Hardhat Local",
+  getSorobanChain: () => ({
+    id: 99999,
+    name: "Soroban Local",
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: { default: { http: ["http://127.0.0.1:8545"] }, public: { http: ["http://127.0.0.1:8545"] } },
   }),

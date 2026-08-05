@@ -46,7 +46,7 @@ This file records the Task 11 state at the end of this work session.
 - Do not create a sale or cash-out.
 - Do not change `apps/web/.env.local`.
 - Do not use ADB reverse or point the phone to a local API.
-- Do not install MetaMask.
+- Do not install Freighter.
 - Do not commit, push, reset, clean, stash, or delete user work.
 - Do not use a production API in E2E.
 

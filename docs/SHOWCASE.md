@@ -48,11 +48,11 @@ the stage. Present the current system:
 1. **Admin portal** — beneficiary registration, tier computation and the one-time allocation.
 2. **Merchant PWA** — product scan, cart, guardian PIN and checkout through `settle_sale`.
 3. **Public balance view** — the printed Nutri-Pass opens a read-only balance page.
-4. **Chain settlement** — the outbox table and the reconcile cron record the sale on Polygon Amoy.
+4. **Chain settlement** — the outbox table and the reconcile cron record the sale on Stellar Testnet.
 
 ## Rules that stay true on stage
 
-- Demo on Polygon Amoy testnet, chain id 80002. Never wire a mainnet key or a mainnet RPC.
+- Demo on Stellar Testnet testnet, chain id Testnet. Never wire a mainnet key or a mainnet RPC.
 - Use seed or demo records. Never show real beneficiary data, PINs or private keys.
 - Keep the demo data in the exact money format: PHP with 2 decimals and integer credits.
 - Read the known gaps in `.kiro/steering/security.md` before you answer a judge question about

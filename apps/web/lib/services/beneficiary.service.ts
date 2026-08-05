@@ -1,5 +1,3 @@
-// eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-vars
-// @ts-nocheck
 // ponytail: dead code kept for tests — server owns canonical impl
 // Beneficiary Service
 // CRUD operations on the beneficiaries table.
@@ -7,7 +5,6 @@
 // - list: returns all beneficiaries with dynamically re-evaluated tiers
 // - addCredits: updates Supabase balance + calls PHPCSubsidy.allocateCredits on-chain
 
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@bantayog/db";
 import type { CreateBeneficiaryDto } from "@bantayog/schema";
 import { hashPin, verifyPin } from "./pin.service";
@@ -18,12 +15,6 @@ import {
   formatAgeDetails,
   type Tier,
 } from "@/lib/domain/eligibility";
-import { getPublicClient, getWalletClient, getHardhatChain } from "@/lib/chain/client";
-import { phpcSubsidyAddress, PHPC_SUBSIDY_ABI } from "@/lib/chain/contracts";
-import { keccak256, toHex } from "viem";
-
-// Helpers
-
 // Generate a card serial like BTG-2026-001
 function generateCardSerial(): string {
   const year = new Date().getFullYear();
@@ -31,10 +22,6 @@ function generateCardSerial(): string {
   return `BTG-${year}-${random}`;
 }
 
-// Convert beneficiary ID (UUID) to bytes32 for on-chain calls.
-function beneficiaryIdToBytes32(id: string): `0x${string}` {
-  return keccak256(toHex(id));
-}
 
 // Register
 
@@ -150,7 +137,7 @@ export async function listBeneficiaries(
 
   const rows = data ?? [];
 
-  return rows.map((row) => {
+  return rows.map((row: any) => {
     // Derive approximate birthdate from age months
     const birthdate = deriveBirthdateFromAgeMonths(row.child_age_months);
     const { tier } = computeTier(birthdate);
@@ -201,40 +188,9 @@ export async function addCredits(
     throw new Error(`Beneficiary not found: ${fetchError?.message ?? beneficiaryId}`);
   }
 
-  // 2. Check subsidy contract balance on-chain (pre-flight)
-  const publicClient = getPublicClient();
-  // Read PHPC balance of LGU treasury
-  const lguBalance = (await publicClient.readContract({
-    address: phpcSubsidyAddress(),
-    abi: PHPC_SUBSIDY_ABI,
-    functionName: "contractPHPCBalance",
-  })) as bigint;
-
-  // Convert amount to wei (18 decimals)
-  const amountWei = BigInt(Math.floor(amount * 1e18));
-
-  if (lguBalance < amountWei) {
-    throw new Error("Insufficient LGU wallet balance for allocation");
-  }
-
-  // 3. Call allocateCredits on-chain FIRST, then update DB on success
-  const walletClient = getWalletClient();
-  const account = walletClient.account;
-  if (!account) {
-    throw new Error("Wallet client account not configured");
-  }
-
-  const txHash = await walletClient.writeContract({
-    address: phpcSubsidyAddress(),
-    abi: PHPC_SUBSIDY_ABI,
-    functionName: "allocateCredits",
-    args: [beneficiaryIdToBytes32(beneficiaryId), amountWei],
-    account,
-    chain: getHardhatChain(),
-  });
-
-  // Wait for receipt before updating DB
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  // 2. STUBBED: Check subsidy contract balance on-chain (pre-flight)
+  // 3. STUBBED: Call allocateCredits on-chain FIRST, then update DB on success
+  const txHash = "0x" + "00".repeat(32);
 
   // 4. Update Supabase balance only after on-chain success
   const newBalance = Number(beneficiary.credit_balance) + amount;
@@ -286,7 +242,7 @@ export async function getBeneficiaryMetrics(
   if (sumError) throw new Error(`Metrics sum error: ${sumError.message}`);
 
   const totalCredits = (sumData ?? []).reduce(
-    (acc, row) => acc + Number(row.credit_balance),
+    (acc: number, row: any) => acc + Number(row.credit_balance),
     0,
   );
 

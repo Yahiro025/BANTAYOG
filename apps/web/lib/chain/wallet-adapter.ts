@@ -1,7 +1,7 @@
 // Wallet Adapter — Frontend Decision Tree
 // Supports a single connection method:
-// 1. Injected EIP-1193 (MetaMask or any standard EVM injected provider)
-// Targets Polygon Amoy with standard injected EVM wallets only.
+// 1. Injected EIP-1193 (Freighter or any standard EVM injected provider)
+// Targets Stellar Testnet with standard injected EVM wallets only.
 // FE2-3.11 — @bantayog/web
 
 // Types
@@ -16,7 +16,7 @@ export interface WalletConnection {
 }
 
 export interface WalletProvider {
-  isMetaMask?: boolean;
+  isFreighter?: boolean;
   request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
 }
 
@@ -33,7 +33,7 @@ function getInjectedProvider(): WalletProvider | null {
 
 // Connection Method
 
-// Connect via injected EIP-1193 provider (MetaMask or any standard EVM wallet).
+// Connect via injected EIP-1193 provider (Freighter or any standard EVM wallet).
 // Requests account access and signs a message for proof of ownership.
 async function connectInjected(): Promise<WalletConnection> {
   const provider = getInjectedProvider();
@@ -55,7 +55,7 @@ async function connectInjected(): Promise<WalletConnection> {
   // Sign a message for proof of ownership
   const message = `BANTAYOG Wallet Verification\nAddress: ${address}\nTimestamp: ${Date.now()}`;
   const proof = (await provider.request({
-    method: "personal_sign",
+    method: "sign",
     params: [message, address],
   })) as string;
 
@@ -75,7 +75,7 @@ export interface BackendVerificationResult {
 // frontend-side contract — Backend 2 only needs to fill in the fetch URL
 // and handle the response shape.
 // @param address - The wallet address to verify
-// @param proof   - Signed proof of ownership from personal_sign
+// @param proof   - Signed proof of ownership from sign
 // @returns       - { verified: true } on success, { verified: false, error: "..." } on failure
 export async function verifyWalletWithBackend(
   _address: string,

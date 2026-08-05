@@ -172,7 +172,7 @@ These rules protect public funds. They are not negotiable.
 - **Secrets.** Never log or return a secret, a PIN, a private key, PII or a stack trace. Use
   `collectConfiguredSecrets` plus `redactSecrets` around chain operations. Never commit `.env*`
   except `.env.example`.
-- **Testnet only.** Polygon Amoy, chain id 80002. Never wire a mainnet key or a mainnet RPC.
+- **Testnet only.** Stellar Testnet, chain id Testnet. Never wire a mainnet key or a mainnet RPC.
 
 ## 13. Observability
 
@@ -230,7 +230,7 @@ Before you present a change, confirm each line and state what you could not conf
 | Logic in `app/api/[...proxy]/route.ts` | A route in `apps/server` |
 | `throw` for an expected failure | `return err(new ...Error())` |
 | A new tagged error with no status mapping | Add the mapping to `errorToHttpStatus` |
-| Reading `process.env.POLYGON_AMOY_RPC_URL` directly | `loadChainConfig(process.env)` |
+| Reading `process.env.Stellar_Testnet_RPC_URL` directly | `loadChainConfig(process.env)` |
 | `new Date()` inside a domain function | An injected `currentDate` |
 | A raw hex colour in a component | A token from `DESIGN.md` |
 | A mutating endpoint under `/api/balance` | A guarded route in another group |

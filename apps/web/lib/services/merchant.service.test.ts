@@ -13,9 +13,9 @@ vi.mock("@/lib/chain/client", () => ({
     account: { address: "0x1234567890123456789012345678901234567890" },
     writeContract: vi.fn(() => Promise.resolve("0xtxhash")),
   }),
-  getHardhatChain: () => ({
-    id: 31337,
-    name: "Hardhat Local",
+  getSorobanChain: () => ({
+    id: 99999,
+    name: "Soroban Local",
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: { default: { http: ["http://127.0.0.1:8545"] }, public: { http: ["http://127.0.0.1:8545"] } },
   }),
@@ -118,7 +118,6 @@ describe("merchant.service", () => {
       storeName: "Aling Nena's",
       ownerName: "Nena Ramos",
       mobileNumberE164: "+639171234567",
-      walletAddress: "0x9999999999999999999999999999999999999999",
     };
 
     const result = await registerMerchant(db, dto, "password123");

@@ -95,7 +95,7 @@ export function TransferModal({
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Transfer to MetaMask Wallet"
+      aria-label="Transfer to Freighter Wallet"
     >
       {/* Backdrop */}
       <div
@@ -130,7 +130,7 @@ export function TransferModal({
           </svg>
         </button>
 
-        {/* Illustration: wallet → MetaMask */}
+        {/* Illustration: wallet → Freighter */}
         <div className="mb-5 flex items-center justify-center gap-4">
           <img
             src="/merchantLogos/wallet2.png"
@@ -152,18 +152,18 @@ export function TransferModal({
           </svg>
           <img
             src="/merchantLogos/wallet.png"
-            alt="MetaMask Wallet"
+            alt="Freighter Wallet"
             className="h-14 w-14 rounded-xl"
           />
         </div>
 
         {/* Title */}
         <h2 className="mb-2 text-center font-body text-xl font-bold text-[#034C52]">
-          Transfer to MetaMask Wallet
+          Transfer to Freighter Wallet
         </h2>
         <p className="mb-6 text-center font-body text-sm text-gray-500">
           You are about to transfer your entire digital wallet balance to your
-          Polygon (MetaMask) Wallet Address
+          Stellar (Freighter) Wallet Address
         </p>
 
         {/* Amount Card */}
@@ -182,7 +182,7 @@ export function TransferModal({
         {/* Address Card */}
         <div className="mb-5 rounded-xl border border-[#c8e6d0] bg-[#f0faf3] px-5 py-4">
           <p className="mb-1 font-body text-xs font-semibold uppercase tracking-wider text-[#034C52]">
-            Polygon Wallet Address
+            Stellar Wallet Address
           </p>
           <div className="flex items-center gap-2">
             <span className="flex-1 truncate rounded-lg border border-gray-200 bg-white px-3 py-2 font-body text-sm text-gray-600">
@@ -224,7 +224,7 @@ export function TransferModal({
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
           <p className="font-body text-sm text-[#92400e]">
-            Once transferred, this amount will be sent to your MetaMask wallet
+            Once transferred, this amount will be sent to your Freighter wallet
             and cannot be reversed.
           </p>
         </div>

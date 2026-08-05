@@ -20,8 +20,8 @@ three failures:
 
 BANTAYOG converts an LGU nutrition cash grant into a nutrition-locked subsidy. The guardian gets
 a printed QR "Nutri-Pass". The pass holds credits. The merchant can spend the credits only on
-child-appropriate food. The system records each sale off-chain first, then settles it on Polygon
-Amoy testnet with a mock PHPC token.
+child-appropriate food. The system records each sale off-chain first, then settles it on Stellar
+Testnet testnet with a mock PHPC token.
 
 ## 3. Goals
 
@@ -37,7 +37,7 @@ Amoy testnet with a mock PHPC token.
 
 - No beneficiary mobile app and no beneficiary login. The printed pass is the only interface.
 - No cash withdrawal for guardians. Credits are not convertible to cash.
-- No mainnet deployment and no real money. Polygon Amoy testnet only.
+- No mainnet deployment and no real money. Stellar Testnet testnet only.
 - No nutrition advice, no medical claims and no diagnosis.
 - No new features for a demo. Present the built system (see `docs/SHOWCASE.md`).
 
@@ -46,7 +46,7 @@ Amoy testnet with a mock PHPC token.
 | User | Surface | Authentication |
 | --- | --- | --- |
 | LGU administrator | `/login`, `/admin/*` | Supabase email and password, `app_metadata.role === 'admin'` |
-| Sari-sari merchant | `/merchant-login`, `/dashboard`, `/cart/*`, `/checkout/*` | Supabase password on `<mobile>@merchant.bantayog.local`, or an EVM `personal_sign` proof |
+| Sari-sari merchant | `/merchant-login`, `/dashboard`, `/cart/*`, `/checkout/*` | Supabase password on `<mobile>@merchant.bantayog.local`, or an EVM `sign` proof |
 | Guardian | `/balance` | None. The signed QR token is the credential |
 
 The guardian has low literacy and a low-end Android device. Keep the taps large and the steps
@@ -71,7 +71,7 @@ few. Use Tagalog-friendly copy.
 6. **Cart and checkout.** The server verifies the QR token, checks `qr_passes.expires_at`,
    verifies the guardian PIN with a lockout, rejects a non-positive total, rejects a total above
    the balance, then calls the `settle_sale` RPC.
-7. **Merchant cash-out.** The merchant connects an EVM wallet with a `personal_sign` proof. The
+7. **Merchant cash-out.** The merchant connects an EVM wallet with a `sign` proof. The
    server takes the `cashout_in_progress` lock, transfers PHPC on-chain, waits for the receipt,
    then zeroes the off-chain balance.
 8. **Public balance view.** The printed pass opens a read-only page. The page shows the balance
@@ -91,14 +91,14 @@ few. Use Tagalog-friendly copy.
 
 ## 6. MVP definition
 
-The MVP is complete when one operator can run this path end to end on Polygon Amoy:
+The MVP is complete when one operator can run this path end to end on Stellar Testnet:
 
 1. The administrator registers a beneficiary and issues a printed pass.
 2. The administrator triggers the one-time allocation for that beneficiary.
 3. The merchant scans two products. One product is eligible. One product is not eligible.
 4. The merchant completes checkout with the guardian PIN. The response arrives in under 2 seconds.
 5. The guardian scans the pass and sees the new balance and the new transaction.
-6. The reconcile cron records the sale on Amoy and marks the outbox row `DONE`.
+6. The reconcile cron records the sale on Testnet and marks the outbox row `DONE`.
 
 Step 6 does not run from a live checkout today. The checkout route writes no outbox row, so the
 queue stays empty. Closing this gap needs one insert in the checkout path. See section 9, item 8.
@@ -129,7 +129,7 @@ queue stays empty. Closing this gap needs one insert in the checkout path. See s
 | NFR4 | Brute force is bounded | Upstash sliding windows: login 5/60s, merchant-login 5/60s, verify-pin 3/60s, Gemini 10/60s, global 100/60s. PIN lockout after 5 failures for 900s |
 | NFR5 | Secrets never leak | pino key redaction plus `redactSecrets` value redaction. No PIN, key, PII or stack trace in a response |
 | NFR6 | Concurrency is safe | `SELECT ... FOR UPDATE` in `settle_sale`. Conditional update for `cashout_in_progress`. UNIQUE on `idempotency_key` and `allocations.beneficiary_id` |
-| NFR7 | The chain target is fixed | Polygon Amoy, chain id 80002, through `loadChainConfig` only |
+| NFR7 | The chain target is fixed | Stellar Testnet, chain id Testnet, through `loadChainConfig` only |
 | NFR8 | The web app holds no business logic | `apps/web` calls `/api/*`. The proxy route only forwards |
 | NFR9 | The build gate is clean | `pnpm lint` with `--max-warnings 0`, `pnpm type-check`, `pnpm test` |
 
@@ -173,7 +173,7 @@ Read these before you answer a judge question or file a bug.
 5. `/api/vision/analyze-scan` and `/api/vision/validate-non-branded` carry the global limit only.
    They are the heavier Gemini callers.
 6. The reconcile cron sends a plain treasury-to-merchant PHPC transfer. It does not call
-   `processTransaction` on `PHPCSubsidy`.
+   `processTransaction` on `StellarContract`.
 7. `packages/db/src/types.ts` lags the migrations. See the drift table in `SCHEMA.md`.
 8. The live checkout route writes no `outbox` row. `TransactionService.createTransaction` writes
    one, but no route calls that method. The reconcile cron therefore has an empty queue after a

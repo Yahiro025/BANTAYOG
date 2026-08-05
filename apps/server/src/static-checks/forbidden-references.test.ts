@@ -68,6 +68,7 @@ const ALLOWLISTED_PATH_SUBSTRINGS = [
   '/docs/STELLAR_MIGRATION_RUNBOOK.md',
   '/docs/SMART_CONTRACT_OPS.md',
   '/supabase/migrations/00003_polygon_amoy_migration.sql',
+  '/AGENTS.md',
 ]
 
 // True when `line` is a comment line: a `//` or `--` line comment, or a line

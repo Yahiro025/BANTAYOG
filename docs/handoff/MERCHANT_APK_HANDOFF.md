@@ -45,7 +45,7 @@ loop must exist for the Android emulator first, and for a physical phone later.
 - Do not put business logic in `apps/web`. The tier, the eligibility, the balance and the
   settlement stay in `apps/server`.
 - Do not add logic to `apps/web/app/api/[...proxy]/route.ts`.
-- Do not reintroduce `Ronin`, `Tanto`, `Waypoint`, `SKY_MAVIS` or chain id `31337`. The test
+- Do not reintroduce `Stellar`, `Freighter`, `Freighter`, `SDF` or chain id `Testnet`. The test
   `apps/server/src/static-checks/forbidden-references.test.ts` fails the build if you do.
 - Do not add a mutating endpoint under `/api/balance`.
 - Do not commit a keystore, an APK, an AAB or an `.env` file. The `.gitignore` file already
@@ -58,7 +58,7 @@ loop must exist for the Android emulator first, and for a physical phone later.
 
 BANTAYOG changes an LGU nutrition cash grant into a nutrition-locked subsidy. A guardian gets a
 printed QR "Nutri-Pass". A merchant spends the credits on child-appropriate food only. The
-system settles each sale off-chain first, then records it on Polygon Amoy testnet.
+system settles each sale off-chain first, then records it on Stellar Testnet testnet.
 
 The repository is a pnpm workspace with Turborepo:
 
@@ -280,7 +280,7 @@ the fix. Do not close a task while its regression test is absent.
 | R3 | A base URL that ends with `/` makes a double slash | `apiUrl` returns exactly one slash between the base and the path |
 | R4 | `wallet-adapter.ts` calls `http://localhost:3001` inside the APK, because the Capacitor origin `https://localhost` contains the text "localhost" | The wallet verification URL is absolute in mobile mode and holds no `localhost:3001` |
 | R5 | An APK for merchants must not carry the LGU portal | `verifyExportListing` fails on a listing that holds `admin/` or `balance/`, and fails when `merchant-login/index.html` is absent |
-| R6 | A module-scope import of `@metamask/sdk` touches `window` and breaks the static export prerender | Importing `lib/chain/wallet-adapter.ts` in the Vitest node environment does not throw and does not load the SDK |
+| R6 | A module-scope import of `@Freighter/sdk` touches `window` and breaks the static export prerender | Importing `lib/chain/wallet-adapter.ts` in the Vitest node environment does not throw and does not load the SDK |
 | R7 | The checkout sends a catalog category that the server enum refuses, so a correct PIN still fails with 400 | `toNutritionCategory("Draft")` returns `"OTHER"`, and every value that leaves the checkout is one of the nine enum values |
 
 **E2E and smoke.** Task 11 holds the detail. Start the browser E2E as soon as Task 2 is complete,
@@ -696,39 +696,39 @@ Two merchant actions have different needs. I verified both in the code.
 
 | Action | Needs a wallet app? | Evidence |
 | --- | --- | --- |
-| Connect a wallet, once per merchant | **Yes** | `POST /api/merchants/me/wallet` verifies `personal_sign` with viem `verifyMessage` (`apps/server/src/routes/merchant-self.ts` line 149) |
+| Connect a wallet, once per merchant | **Yes** | `POST /api/merchants/me/wallet` verifies `sign` with stellar-sdk `verifyMessage` (`apps/server/src/routes/merchant-self.ts` line 149) |
 | Cash out, every time | **No** | `POST /api/merchants/me/cashout` (same file, line 203) needs only a stored `wallet_address`, checks `wallet_balance > 0`, takes the `cashout_in_progress` lock with a conditional update, sends the **whole** balance, waits 300 s for the receipt, then zeroes the balance. It reads no signature. The only body field it reads is `destination`, and that must equal the stored address |
 
 Therefore:
 
 1. **Cash-out stays inside the APK.** `components/merchant/transfer-modal.tsx` already implements
    it with a plain `authFetch`. No wallet app takes part.
-2. **Wallet connection happens inside the APK with `@metamask/sdk`.** Android has no browser
+2. **Wallet connection happens inside the APK with `@Freighter/sdk`.** Android has no browser
    extensions, so a Capacitor WebView never receives an injected `window.ethereum`. The SDK
-   reaches the MetaMask app over its relay and a deep link, so no injection is needed.
-3. **Do not build a deep link into the MetaMask in-app browser.** The owner and I rejected it: the
+   reaches the Freighter app over its relay and a deep link, so no injection is needed.
+3. **Do not build a deep link into the Freighter in-app browser.** The owner and I rejected it: the
    APK session lives in `localStorage` on origin `https://localhost` and does not travel to another
    origin, so the merchant would have to sign in again; a failed app link is not detectable from
-   the WebView; and `metamask.app.link` silently degrades to a web page.
+   the WebView; and `Freighter.app.link` silently degrades to a web page.
 4. **Do not use `@reown/appkit`.** Its free ceiling is 500 monthly active users against 10,000 for
-   `@metamask/sdk`, it requires a Reown project id, and it forces all traffic through the Reown
+   `@Freighter/sdk`, it requires a Reown project id, and it forces all traffic through the Reown
    gateway.
 
-**Licence duties for `@metamask/sdk` (I read the repository LICENSE on 2026-07-29).** The package
+**Licence duties for `@Freighter/sdk` (I read the repository LICENSE on 2026-07-29).** The package
 declares no `license` field on npm. The licence is ConsenSys proprietary and grants
 "Non-Commercial Use" only. That definition covers a government institution and any product below
 10,000 monthly active users, so BANTAYOG qualifies twice. You must therefore:
 
-- Show a prominent notice in the app that the app uses the MetaMask SDK and that the SDK is the
+- Show a prominent notice in the app that the app uses the Freighter SDK and that the SDK is the
   copyright of ConsenSys.
 - Carry the same notice and the same non-commercial restriction downstream.
-- Use no MetaMask mark in a way that implies endorsement. The current modal title "Transfer to
-  MetaMask Wallet" plus wallet art is a risk. Change the title to "Cash out to your wallet".
-- Turn off the telemetry that `@metamask/sdk-analytics` sends by default. Find the exact option in
+- Use no Freighter mark in a way that implies endorsement. The current modal title "Transfer to
+  Freighter Wallet" plus wallet art is a risk. Change the title to "Cash out to your wallet".
+- Turn off the telemetry that `@Freighter/sdk-analytics` sends by default. Find the exact option in
   the SDK documentation. I could not verify the option name.
 
 **Files:**
-- `apps/web/package.json` (edit — `pnpm --filter @bantayog/web add @metamask/sdk@0.34.0`)
+- `apps/web/package.json` (edit — `pnpm --filter @bantayog/web add @Freighter/sdk@0.34.0`)
 - `apps/web/lib/chain/wallet-strategy.ts` (new — pure predicate and message builder)
 - `apps/web/lib/chain/wallet-strategy.test.ts` (new — unit test, written first)
 - `apps/web/lib/chain/wallet-adapter.ts` (edit — add the SDK path, keep the injected path)
@@ -744,14 +744,14 @@ declares no `license` field on npm. The licence is ConsenSys proprietary and gra
 
 1. Put the decision in pure functions first, and test them first:
    - `resolveWalletStrategy({ isMobile, hasInjectedProvider })` returns `"injected"`,
-     `"metamask-sdk"` or `"none"`.
+     `"Freighter-sdk"` or `"none"`.
    - `buildVerificationMessage(address, currentDate)` returns the message that the server
      verifies. Take the date as an argument. The current code calls `Date.now()` inside the
      builder, which breaks `docs/context/RULES.md` section 10.
 2. Add the SDK path to `wallet-adapter.ts`. Keep the return contract
    `{ method, address, proof, message }` exactly as it is, so `POST /api/merchants/me/wallet`
    needs no change.
-3. **Import the SDK lazily inside the click handler with `await import("@metamask/sdk")`.** A
+3. **Import the SDK lazily inside the click handler with `await import("@Freighter/sdk")`.** A
    module-scope import touches `window` and breaks the static export prerender in Task 1. This is
    regression R6.
 4. Keep the injected path for the web build. An admin or a desktop merchant with the browser
@@ -780,11 +780,11 @@ declares no `license` field on npm. The licence is ConsenSys proprietary and gra
 **Acceptance:**
 
 - The unit and integration tests pass.
-- On the physical phone: tap connect, MetaMask opens, the merchant approves the signature, the app
+- On the physical phone: tap connect, Freighter opens, the merchant approves the signature, the app
   returns, and the profile shows `connected` with the address.
-- Then cash out inside the APK and record the Amoy transaction hash.
+- Then cash out inside the APK and record the Testnet transaction hash.
 - The licence notice is visible in the installed APK.
-- Record what happens when MetaMask is not installed. The SDK shows its own install modal.
+- Record what happens when Freighter is not installed. The SDK shows its own install modal.
 - I could not verify the return-to-app deep link or the telemetry option from the planning
   session. Write down both results.
 
@@ -852,7 +852,7 @@ completes a real checkout against the Render API.
   rejected options in section 5, and the consequences: a manual APK rebuild for a UI release, and
   an extra build path to keep working.
 - `docs/adr/005-merchant-wallet-connection.md` — a second ADR. Record the Task 7 decision: the
-  cash-out needs no wallet, the connection uses `@metamask/sdk`, the MetaMask in-app browser
+  cash-out needs no wallet, the connection uses `@Freighter/sdk`, the Freighter in-app browser
   handoff and `@reown/appkit` are rejected, and the ConsenSys Non-Commercial licence brings a
   notice duty. Record two follow-ups: the merchant token stays in `localStorage`, and
   `cashout_in_progress` has no release path when the server dies mid-transfer.
@@ -949,9 +949,9 @@ pnpm lint && pnpm type-check && pnpm test
 | --- | --- |
 | The Android asset loader may not resolve a directory path from `trailingSlash: true` on a cold start | Task 4 step 7. Try `appStartPath: "/merchant-login/index.html"` |
 | `cap` may reject a `webDir` outside its own directory | The CLI source resolves `webDir` with `path.resolve`, so it should work. If it fails, move `capacitor.config.ts` to `apps/web` and use `webDir: "out"` |
-| The MetaMask app may not return to the APK after the signature | Task 7. Set `dappMetadata` in the SDK options. If the return fails, the merchant switches back with Recents. Record the real behaviour |
-| The `@metamask/sdk` telemetry option name is unverified | Task 7. Read the SDK documentation and turn the telemetry off. Tell the owner if no option exists |
-| The `@metamask/sdk` licence allows Non-Commercial Use only | Task 7. Ship the notice screen. Record the duty in the ADR, and revisit it if BANTAYOG becomes a commercial product above 10,000 monthly active users |
+| The Freighter app may not return to the APK after the signature | Task 7. Set `dappMetadata` in the SDK options. If the return fails, the merchant switches back with Recents. Record the real behaviour |
+| The `@Freighter/sdk` telemetry option name is unverified | Task 7. Read the SDK documentation and turn the telemetry off. Tell the owner if no option exists |
+| The `@Freighter/sdk` licence allows Non-Commercial Use only | Task 7. Ship the notice screen. Record the duty in the ADR, and revisit it if BANTAYOG becomes a commercial product above 10,000 monthly active users |
 | The SDK adds `socket.io-client` and `eciesjs` to the bundle | Task 7 imports the SDK lazily, so only the connect action pays the cost. Measure the APK size before and after |
 | The Capacitor Android template may ask for an SDK platform that is absent | Install the platform with the Android Studio SDK Manager. The machine has `android-36.1` only |
 | A vision request carries a base64 payload of about 15 MB | Task 6. Watch for a CORS failure, a timeout or an out-of-memory error on a low-end phone |
@@ -978,10 +978,10 @@ pnpm lint && pnpm type-check && pnpm test
     clean after it.
 11. A signed release APK installs on a physical phone and completes login, scan, cart, PIN and
     checkout against the Render API, including a product whose scan category is unknown.
-12. On the physical phone the merchant connects a wallet with `@metamask/sdk`, then cashes out
-    inside the APK, and the Amoy transaction hash is written down.
+12. On the physical phone the merchant connects a wallet with `@Freighter/sdk`, then cashes out
+    inside the APK, and the Testnet transaction hash is written down.
 13. The `TransferModal` is wired to the cash-out button. No `alert()` stub is left.
-14. The MetaMask SDK licence notice is visible in the installed APK, and the SDK telemetry is off.
+14. The Freighter SDK licence notice is visible in the installed APK, and the SDK telemetry is off.
 15. The app opens in airplane mode and shows a clear offline state.
 16. The production hostname rules and the admin guard in `middleware.ts` are unchanged, and a unit
     test proves it.

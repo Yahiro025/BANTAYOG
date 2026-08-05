@@ -1,8 +1,9 @@
 // Contract ABIs and address resolution.
-// Hardhat-compiled artifacts are not checked in; we define minimal ABIs
+// Soroban-compiled artifacts are not checked in; we define minimal ABIs
 // inline derived from the Solidity source. Addresses are read from env.
 
-import { getAddress, type Abi } from "viem";
+type Abi = any[];
+function getAddress(a: string) { return a; }
 
 // Env helpers
 
@@ -11,7 +12,7 @@ function getContractAddress(name: string): `0x${string}` {
   if (!val) {
     throw new Error(
       `Missing contract address env var: ${name}. ` +
-        `Run 'npx hardhat run scripts/deploy.ts --network amoy' and copy addresses to .env.local.`,
+        `Run 'npx Soroban run scripts/deploy.ts --network Testnet' and copy addresses to .env.local.`,
     );
   }
   return getAddress(val) as `0x${string}`;

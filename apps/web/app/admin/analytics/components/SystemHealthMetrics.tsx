@@ -297,7 +297,7 @@ function SettlementThroughput({
     const byDate = new Map<string, DailyVolume>();
 
     for (const transaction of transactions.data) {
-      /* `onchain_tx_hash` is what marks a row as actually settled on Polygon Amoy. */
+      /* `onchain_tx_hash` is what marks a row as actually settled on Stellar Testnet. */
       if (!transaction.onchainTxHash) continue;
 
       const createdAt = Date.parse(transaction.createdAt);
@@ -342,7 +342,7 @@ function SettlementThroughput({
       <MetricTile
         label="LGU treasury balance"
         value={formatDecimalString(chainBalance.data.formatted)}
-        caption="read from Polygon Amoy"
+        caption="read from Stellar Testnet"
       />
 
       {volumes.length > 0 ? (
@@ -350,7 +350,7 @@ function SettlementThroughput({
       ) : (
         <EmptyState
           message="No transaction has been settled on-chain in this period."
-          detail="Off-chain confirmed sales are reconciled to Polygon Amoy by the reconcile job and at merchant cash-out."
+          detail="Off-chain confirmed sales are reconciled to Stellar Testnet by the reconcile job and at merchant cash-out."
         />
       )}
     </div>
@@ -506,7 +506,7 @@ export function SystemHealthMetrics({ days }: { days: number }) {
       <WidgetCard
         loading={transactions.status === "loading" || chainBalance.status === "loading"}
         title="Settlement Throughput"
-        subtitle={`Daily PHPC settled on Polygon Amoy, last ${days} days`}
+        subtitle={`Daily PHPC settled on Stellar Testnet, last ${days} days`}
         icon={
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <rect x="1" y="4" width="22" height="16" rx="2" />

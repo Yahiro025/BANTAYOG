@@ -376,7 +376,7 @@ export default function MerchantsPage() {
           loading={loading}
           label="VERIFIED MERCHANTS"
           value={metrics ? `${metrics.verifiedMerchants} Stores` : "—"}
-          subtext="Secured via Polygon Amoy"
+          subtext="Secured via Stellar Testnet"
           subtextColor="text-brand-darkTeal/40"
           icon={
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-brand-darkTeal/40">
@@ -402,7 +402,7 @@ export default function MerchantsPage() {
         <div className="flex items-center justify-between px-6 py-4 border-b border-brand-sageBorder/20">
           <div className="flex items-center gap-2.5">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand-darkTeal/50">
-              <polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" />
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
             </svg>
             <h2 className="font-bold text-brand-darkTeal text-sm">Merchant Directory</h2>
           </div>

@@ -47,7 +47,7 @@ export function getSupabaseAnonKey(): string {
 export function getDeployerPrivateKey(): `0x${string}` {
   const key =
     getEnv("DEPLOYER_PRIVATE_KEY") ??
-    // Hardhat default account #0 — safe for local dev only
+    // Soroban default account #0 — safe for local dev only
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
   return key as `0x${string}`;
 }

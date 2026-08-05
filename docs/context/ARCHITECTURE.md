@@ -30,10 +30,10 @@ where an ADR and the code disagree.
                     └──┬────────────┬─────────────┬────────┘
                        │            │             │
             ┌──────────▼───┐  ┌─────▼──────┐  ┌───▼─────────────┐
-            │ Supabase     │  │ Gemini     │  │ Polygon Amoy    │
-            │ Postgres     │  │ vision +   │  │ chain id 80002  │
-            │ Auth Storage │  │ grounded   │  │ PHPC, PHPCSubsidy│
-            │ settle_sale  │  │ price      │  │ viem clients    │
+            │ Supabase     │  │ Gemini     │  │ Stellar Testnet    │
+            │ Postgres     │  │ vision +   │  │ chain id Testnet  │
+            │ Auth Storage │  │ grounded   │  │ PHPC, StellarContract│
+            │ settle_sale  │  │ price      │  │ stellar-sdk clients    │
             └──────┬───────┘  └────────────┘  └───▲─────────────┘
                    │ outbox rows                  │
                    │                              │
@@ -56,7 +56,7 @@ public record. ADR-001 gives the reason.
 | `apps/server` | Hono on `@hono/node-server`, port 3001 | `GET /health` is public |
 | Database | Supabase Postgres | Extensions `pgvector` and `pg_trgm` |
 | Cache and limits | Upstash Redis | Sliding-window rate limits and the PIN lockout |
-| Chain | Polygon Amoy testnet | Read every chain variable through `loadChainConfig` |
+| Chain | Stellar Testnet testnet | Read every chain variable through `loadChainConfig` |
 | Scheduler | cron-job.org | Sends `Authorization: Bearer $CRON_SECRET` |
 
 `apps/web/app/api/[...proxy]/route.ts` forwards `/api/*` to `NEXT_PUBLIC_API_BASE_URL`. It
@@ -122,7 +122,7 @@ CORS (CORS_ORIGIN, default http://localhost:3000)
 | Repository | `repositories/*.repository.ts` on `BaseRepository<'table'>` | Keeps SQL access typed and in one layer. No ORM |
 | Transactional outbox | `outbox` table plus `cron/reconcile.ts` | Separates the instant sale from the slow chain write (ADR-001) |
 | Pure domain core | `domain/eligibility.ts`, `domain/nutrition-policy.ts` | Tier math is deterministic and identical on every read path (ADR-002) |
-| Gateway / adapter | `services/chain.client.ts`, `wallet-adapter.gateway.ts`, `lib/gemini-client.ts` | Isolates viem, `personal_sign` and Gemini behind one narrow surface |
+| Gateway / adapter | `services/chain.client.ts`, `wallet-adapter.gateway.ts`, `lib/gemini-client.ts` | Isolates stellar-sdk, `sign` and Gemini behind one narrow surface |
 | Anti-corruption layer | `dto/mappers.ts` | Database naming never leaks into the API. The snapshot test guards the shape |
 | Idempotency key | `transactions.idempotency_key` UNIQUE, and the key is the row id | A retried checkout cannot double spend |
 | Database-level atomicity | `settle_sale` RPC with `SELECT ... FOR UPDATE` | One transaction does the lock, the checks and the insert |
@@ -182,7 +182,7 @@ scheduler ─► Bearer CRON_SECRET ─► runReconciliation()
   3. select up to 20 outbox rows           status = PENDING, kind = TRANSACTION_CHAIN_SUBMIT
   4. per row: update status = PROCESSING   (a claim, one row at a time)
   5. read merchants.wallet_address
-  6. chainClient.transferPHPC(wallet, wei) treasury → merchant, a plain ERC-20 transfer
+  6. chainClient.transferPHPC(wallet, wei) treasury → merchant, a plain Stellar Asset transfer
   7. waitForConfirmation(txHash)
   8. success → outbox DONE, transaction CONFIRMED + onchain_tx_hash + confirmed_at
      failure → attempts + 1, last_error, status back to PENDING
@@ -245,7 +245,7 @@ Fix the document or fix the code. Do not leave both wrong.
 
 | ADR | Statement | Code today |
 | --- | --- | --- |
-| ADR-001 | "settled on-chain on the Ronin blockchain" | Polygon Amoy, chain id 80002. A static test blocks the old names |
+| ADR-001 | "settled on-chain on the Stellar blockchain" | Stellar Testnet, chain id Testnet. A static test blocks the old names |
 | ADR-001 | The handler writes the transaction and the outbox row in one atomic step | The live checkout route writes no outbox row at all. `TransactionService.createTransaction` writes one, but no route calls it. Only the e2e test drives that path |
 | ADR-001 | The handler writes the transaction as `PENDING_CHAIN`, and checkout returns `PENDING_CHAIN` | `settle_sale` inserts the row as `CONFIRMED`. The route returns `CONFIRMED` |
 | ADR-001 | The contract de-duplicates with the transaction UUID | The reconcile cron sends a plain treasury-to-merchant transfer. It does not call `processTransaction` |
@@ -262,12 +262,12 @@ off-chain settlement apart from a chain confirmation.
 
 | Contract | Role |
 | --- | --- |
-| `PHPC.sol` | Mock PHP-pegged ERC-20, 18 decimals. The subsidy unit |
-| `PHPCSubsidy.sol` | UUPS-upgradeable subsidy logic. `onlyOwner` on `allocateCredits` and `processTransaction` |
+| `PHPC.sol` | Mock PHP-pegged Stellar Asset, 18 decimals. The subsidy unit |
+| `StellarContract.sol` | UUPS-upgradeable subsidy logic. `onlyOwner` on `allocateCredits` and `processTransaction` |
 | `BeneficiaryRegistry.sol`, `MerchantRegistry.sol` | Kept from the earlier design. Not part of the PHPC settlement path |
-| `UUPSProxy.sol`, `test/PHPCSubsidyV2Mock.sol` | Proxy plumbing and the storage-layout test fixture |
+| `UUPSProxy.sol`, `test/StellarContractV2Mock.sol` | Proxy plumbing and the storage-layout test fixture |
 
-Hardhat 3, solc 0.8.28, optimizer runs 200, `evmVersion: london`. Keep a V2 storage layout
+Soroban 3, solc 0.8.28, optimizer runs 200, `evmVersion: london`. Keep a V2 storage layout
 identical to V1. The runbook is `docs/SMART_CONTRACT_OPS.md`.
 
 ## 10. Adding a feature — the standard path

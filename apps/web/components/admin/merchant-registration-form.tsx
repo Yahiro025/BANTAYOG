@@ -10,7 +10,7 @@ import { authFetch } from "@/lib/api";
    MerchantRegistrationForm — mock 2.png (right card)
    Fields: Name of the Store, Name of the Owner,
    Phone Number (PH flag + "+63" prefix),
-   Wallet Address (Polygon EVM 0x… — MetaMask address),
+   Wallet Address (Stellar EVM 0x… — Freighter address),
    Create Password, Confirm Password.
    Submit → POST /api/merchants/register
    Success → calls onSuccess() to show verified toast.

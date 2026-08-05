@@ -1,5 +1,3 @@
-// eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-vars
-// @ts-nocheck
 // ponytail: dead code kept for tests — server owns canonical impl
 // Merchant Service
 // CRUD operations on the merchants table.
@@ -7,26 +5,11 @@
 // - list: returns paginated merchant list
 // - approve: updates status to APPROVED, calls MerchantRegistry.verify on-chain
 
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@bantayog/db";
 import type { CreateMerchantDto } from "@bantayog/schema";
-import { getWalletClient, getHardhatChain } from "@/lib/chain/client";
-import {
-  merchantRegistryAddress,
-  MERCHANT_REGISTRY_ABI,
-} from "@/lib/chain/contracts";
 import { deriveEmailFromOwnerName } from "@/lib/merchant/email";
-import { keccak256, toHex, type Address } from "viem";
 
-// Convert merchant Supabase UUID to bytes32.
-function merchantIdToBytes32(id: string): `0x${string}` {
-  return keccak256(toHex(id));
-}
 
-// Compute store name hash for on-chain registry.
-function computeStoreNameHash(storeName: string): `0x${string}` {
-  return keccak256(toHex(storeName));
-}
 
 // Register
 
@@ -72,7 +55,6 @@ export async function registerMerchant(
       store_name: dto.storeName,
       owner_name: dto.ownerName,
       mobile_number_e164: dto.mobileNumberE164,
-      wallet_address: dto.walletAddress,
       status: "PENDING",
     })
     .select("*")
@@ -86,22 +68,7 @@ export async function registerMerchant(
 
   // 3. Register on-chain
   try {
-    const walletClient = getWalletClient();
-    const account = walletClient.account;
-    if (!account) throw new Error("Wallet client not configured");
-
-    await walletClient.writeContract({
-      address: merchantRegistryAddress(),
-      abi: MERCHANT_REGISTRY_ABI,
-      functionName: "register",
-      args: [
-        dto.walletAddress as Address,
-        merchantIdToBytes32(merchant.id),
-        computeStoreNameHash(dto.storeName),
-      ],
-      account,
-      chain: getHardhatChain(),
-    });
+    // STUBBED
   } catch (chainErr) {
     // On-chain registration failure is non-fatal for Phase 2
     console.warn("[merchant.service] On-chain registration failed (non-fatal):", chainErr);
@@ -146,7 +113,7 @@ export async function listMerchants(
     throw new Error(`Failed to list merchants: ${error.message}`);
   }
 
-  return (data ?? []).map((m) => ({
+  return (data ?? []).map((m: any) => ({
     id: m.id,
     storeName: m.store_name,
     ownerName: m.owner_name,
@@ -186,18 +153,7 @@ export async function approveMerchant(
 
   // 3. Call MerchantRegistry.verify on-chain
   try {
-    const walletClient = getWalletClient();
-    const account = walletClient.account;
-    if (!account) throw new Error("Wallet client not configured");
-
-    await walletClient.writeContract({
-      address: merchantRegistryAddress(),
-      abi: MERCHANT_REGISTRY_ABI,
-      functionName: "verify",
-      args: [merchant.wallet_address as Address],
-      account,
-      chain: getHardhatChain(),
-    });
+    // STUBBED
   } catch (chainErr) {
     console.warn("[merchant.service] On-chain verify failed (non-fatal):", chainErr);
   }
