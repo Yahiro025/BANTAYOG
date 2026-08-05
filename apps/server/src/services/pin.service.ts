@@ -1,6 +1,7 @@
 import { hash, verify } from '@node-rs/argon2'
 import { type AppResult, ok, err, ValidationError, RateLimitError } from '../lib/errors.js'
 import { getRedisClient } from '../lib/redis.js'
+import { recordPinAttempt, recordPinLockout } from '../lib/analytics-metrics.js'
 
 /**
  * Requirement 7.5: number of consecutive incorrect PIN attempts that triggers
@@ -101,6 +102,11 @@ export class PinService {
       );
     }
 
+    // Requirement: PIN Lockout & Security Alerts widget — every attempt that
+    // actually reaches PIN verification (i.e. is not already blocked by an
+    // existing lock) counts toward the cumulative analytics counter.
+    void recordPinAttempt();
+
     const verifyResult = await this.verifyPin(pin, hashString);
     if (verifyResult.isErr()) {
       return verifyResult;
@@ -120,6 +126,7 @@ export class PinService {
     if (attempts >= MAX_CONSECUTIVE_FAILURES) {
       await redis.set(lockKey, '1', { ex: LOCKOUT_TTL_SECONDS });
       await redis.del(failKey);
+      void recordPinLockout();
       return err(
         new RateLimitError(
           'Too many incorrect PIN attempts. Account is temporarily locked.',

@@ -30,6 +30,23 @@ import { type AppResult, OnchainError, ok, err } from '../lib/errors.js'
 const OPERATION_TIMEOUT_MS = 30_000
 
 const NETWORK_NAME = 'Polygon Amoy'
+const BALANCE_CACHE_TTL_MS = 5_000
+
+type CachedBalance = {
+  value: bigint
+  expiresAt: number
+}
+
+function sameClientConfig(left: ChainConfig, right: ChainConfig): boolean {
+  return (
+    left.rpcUrl === right.rpcUrl &&
+    left.chainId === right.chainId &&
+    left.deployerKey === right.deployerKey &&
+    left.lguAdminWallet === right.lguAdminWallet &&
+    left.phpcTokenAddress === right.phpcTokenAddress &&
+    left.phpcSubsidyAddress === right.phpcSubsidyAddress
+  )
+}
 
 export const PHPC_ABI = [
   {
@@ -101,6 +118,14 @@ function toErrorCode(e: unknown): number {
 }
 
 export class BlockchainClient {
+  private static cachedClient: { config: ChainConfig; client: BlockchainClient } | undefined
+  private static inFlightCreation:
+    | { config: ChainConfig; promise: Promise<AppResult<BlockchainClient>> }
+    | undefined
+
+  private readonly balanceCache = new Map<string, CachedBalance>()
+  private readonly inFlightBalanceReads = new Map<string, Promise<AppResult<bigint>>>()
+
   private constructor(
     private readonly config: ChainConfig,
     private readonly chain: AmoyChain,
@@ -158,6 +183,38 @@ export class BlockchainClient {
     return ok(new BlockchainClient(config, chain, publicClient, walletClient))
   }
 
+  /**
+   * Returns a validated client for the current process and coalesces concurrent
+   * creation requests for the same configuration. A changed RPC or contract
+   * configuration creates a new client instead of reusing stale state.
+   */
+  static async getOrCreate(config: ChainConfig): Promise<AppResult<BlockchainClient>> {
+    const cached = this.cachedClient
+    if (cached && sameClientConfig(cached.config, config)) {
+      return ok(cached.client)
+    }
+
+    const inFlight = this.inFlightCreation
+    if (inFlight && sameClientConfig(inFlight.config, config)) {
+      return inFlight.promise
+    }
+
+    const promise = this.create(config)
+    this.inFlightCreation = { config, promise }
+
+    try {
+      const result = await promise
+      if (result.isOk() && this.inFlightCreation?.promise === promise) {
+        this.cachedClient = { config, client: result.value }
+      }
+      return result
+    } finally {
+      if (this.inFlightCreation?.promise === promise) {
+        this.inFlightCreation = undefined
+      }
+    }
+  }
+
   /** Hashes a UUID string to a bytes32 identifier for Solidity contract calls. */
   private hashUuid(uuid: string): Hex {
     return keccak256(toBytes(uuid))
@@ -203,6 +260,45 @@ export class BlockchainClient {
       return ok(balance)
     } catch (e) {
       return err(new OnchainError(`getTreasuryBalance failed on ${NETWORK_NAME}`, toErrorCode(e)))
+    }
+  }
+
+  /**
+   * Reads and briefly caches a successful PHPC balance. Concurrent reads for
+   * the same address share one RPC request; failures are never cached.
+   */
+  async getCachedBalance(address: string): Promise<AppResult<bigint>> {
+    const cacheKey = address.toLowerCase()
+    const cached = this.balanceCache.get(cacheKey)
+
+    if (cached && cached.expiresAt > Date.now()) {
+      return ok(cached.value)
+    }
+    if (cached) {
+      this.balanceCache.delete(cacheKey)
+    }
+
+    const inFlight = this.inFlightBalanceReads.get(cacheKey)
+    if (inFlight) {
+      return inFlight
+    }
+
+    const readPromise = this.getBalance(address)
+    this.inFlightBalanceReads.set(cacheKey, readPromise)
+
+    try {
+      const result = await readPromise
+      if (result.isOk()) {
+        this.balanceCache.set(cacheKey, {
+          value: result.value,
+          expiresAt: Date.now() + BALANCE_CACHE_TTL_MS,
+        })
+      }
+      return result
+    } finally {
+      if (this.inFlightBalanceReads.get(cacheKey) === readPromise) {
+        this.inFlightBalanceReads.delete(cacheKey)
+      }
     }
   }
 

@@ -69,22 +69,33 @@ async function refreshMerchantToken(refreshToken: string): Promise<string | null
   return null;
 }
 
-export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  let token: string | null = null;
+function isAdminEndpoint(url: string): boolean {
+  const pathname = url.split("?", 1)[0];
 
-  // 1. Always check the merchant localStorage token first.
-  //    Merchants log in via /api/auth/merchant-login which stores the token here.
-  //    This applies to ALL merchant-facing endpoints (vision, transactions, products, etc.)
+  return (
+    pathname === "/api/beneficiaries" ||
+    pathname.startsWith("/api/beneficiaries/") ||
+    pathname === "/api/merchants" ||
+    (pathname.startsWith("/api/merchants/") && !pathname.startsWith("/api/merchants/me"))
+  );
+}
+
+export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  let merchantToken: string | null = null;
+
+  // Merchant credentials are stored separately because merchant login does not
+  // create the admin Supabase browser session. Expired credentials are removed
+  // before any request can use them.
   if (typeof window !== "undefined") {
     const storedToken = window.localStorage.getItem(MERCHANT_TOKEN_KEY);
     const refreshToken = window.localStorage.getItem(MERCHANT_REFRESH_TOKEN_KEY);
 
     if (storedToken && !isMerchantTokenExpired()) {
-      token = storedToken;
+      merchantToken = storedToken;
     } else if (storedToken && isMerchantTokenExpired() && refreshToken) {
       const refreshedToken = await refreshMerchantToken(refreshToken);
       if (refreshedToken) {
-        token = refreshedToken;
+        merchantToken = refreshedToken;
       } else {
         clearMerchantToken();
       }
@@ -93,15 +104,24 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
     }
   }
 
-  // 2. If no merchant token, fall back to a Supabase browser session (admin login).
-  if (!token) {
+  let sessionToken: string | null = null;
+
+  // Admin endpoints must prefer the Supabase session when one exists. This
+  // prevents a stale merchant token from turning an authenticated admin page
+  // into a misleading 403/empty registry after switching portals.
+  // Merchant endpoints continue to prefer the merchant token.
+  if (!merchantToken || isAdminEndpoint(url)) {
     try {
       const { data } = await supabase.auth.getSession();
-      token = data.session?.access_token ?? null;
+      sessionToken = data.session?.access_token ?? null;
     } catch (err) {
       console.error("Error retrieving Supabase session:", err);
     }
   }
+
+  const token = isAdminEndpoint(url) && sessionToken
+    ? sessionToken
+    : merchantToken ?? sessionToken;
 
   const headers = {
     ...options.headers,

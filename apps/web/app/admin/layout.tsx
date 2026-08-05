@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import { useAuth } from "@/stores/auth-context";
 import { AdminHeaderNav } from "@/components/admin/header-nav";
+import { PanelCardSkeleton } from "@/components/admin/skeleton";
 
 /* ── Supabase browser client ── */
 const supabase = createBrowserClient(
@@ -92,34 +93,17 @@ export default function AdminLayout({
     return <>{children}</>;
   }
 
-  // Show loading spinner while checking session
+  // Show a shape-only skeleton while checking the session.
   if (checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--color-canvas)" }}>
-        <div className="flex flex-col items-center gap-4">
-          <svg
-            className="animate-spin h-8 w-8 text-brand-activeTeal"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-            />
-          </svg>
-          <p className="text-sm text-brand-darkTeal/50 font-semibold">
-            Verifying session…
-          </p>
-        </div>
+      <div
+        className="min-h-screen flex items-center justify-center p-6"
+        style={{ backgroundColor: "var(--color-canvas)" }}
+      >
+        <PanelCardSkeleton
+          className="w-full max-w-sm rounded-2xl border border-brand-sageBorder/30 bg-bg-card/80 p-6 shadow-sm"
+          ariaLabel="Verifying session"
+        />
       </div>
     );
   }
@@ -137,8 +121,8 @@ export default function AdminLayout({
       </main>
 
       {/* Footer */}
-      <footer className="w-full py-5 border-t border-brand-sageBorder/20 bg-bg-navbar">
-        <p className="text-center text-[11px] font-semibold uppercase tracking-wider text-brand-darkTeal/40">
+      <footer className="w-full py-5 border-t border-white/15 bg-admin-footer">
+        <p className="text-center text-[11px] font-semibold uppercase tracking-wider text-white/90">
           © 2026 BANTAYOG. All rights reserved.
         </p>
       </footer>

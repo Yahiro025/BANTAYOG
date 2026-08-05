@@ -141,6 +141,37 @@ describe('BlockchainClient.create', () => {
   })
 })
 
+describe('BlockchainClient.getOrCreate', () => {
+  it('coalesces concurrent creation and reuses the validated client', async () => {
+    let resolveChainId: (value: number | PromiseLike<number>) => void = () => undefined
+    const chainIdPromise = new Promise<number>((resolve) => {
+      resolveChainId = resolve
+    })
+    getChainIdMock.mockReturnValueOnce(chainIdPromise)
+
+    const config = buildConfig({ rpcUrl: 'https://rpc-amoy-cache.example.com' })
+    const firstPromise = BlockchainClient.getOrCreate(config)
+    const secondPromise = BlockchainClient.getOrCreate(config)
+    resolveChainId(80002)
+
+    const [firstResult, secondResult] = await Promise.all([firstPromise, secondPromise])
+
+    expect(firstResult.isOk()).toBe(true)
+    expect(secondResult.isOk()).toBe(true)
+    expect(createPublicClientMock).toHaveBeenCalledTimes(1)
+    expect(getChainIdMock).toHaveBeenCalledTimes(1)
+
+    const firstClient = firstResult._unsafeUnwrap()
+    const secondClient = secondResult._unsafeUnwrap()
+    expect(secondClient).toBe(firstClient)
+
+    const cachedResult = await BlockchainClient.getOrCreate(config)
+    expect(cachedResult.isOk()).toBe(true)
+    expect(cachedResult._unsafeUnwrap()).toBe(firstClient)
+    expect(getChainIdMock).toHaveBeenCalledTimes(1)
+  })
+})
+
 // ---------------------------------------------------------------------------
 // Property 3: Connected-network chain-ID verification.
 // Feature: polygon-amoy-phpc-migration, Property 3: Connected-network
@@ -219,6 +250,70 @@ describe('BlockchainClient.getBalance', () => {
     expect(ARBITRARY_ADDRESS).not.toBe(config.lguAdminWallet)
     expect(balanceResult.isOk()).toBe(true)
     expect(balanceResult._unsafeUnwrap()).toBe(expectedBalance)
+  })
+})
+
+describe('BlockchainClient.getCachedBalance', () => {
+  it('coalesces concurrent reads and caches successful balances briefly', async () => {
+    vi.useFakeTimers()
+
+    try {
+      getChainIdMock.mockResolvedValue(80002)
+      const expectedBalance = 555n * 10n ** 18n
+      let resolveRead: (value: bigint | PromiseLike<bigint>) => void = () => undefined
+      const readPromise = new Promise<bigint>((resolve) => {
+        resolveRead = resolve
+      })
+      readContractMock.mockReturnValueOnce(readPromise)
+
+      const result = await BlockchainClient.create(buildConfig())
+      const client = result._unsafeUnwrap()
+      const firstRead = client.getCachedBalance(ARBITRARY_ADDRESS)
+      const secondRead = client.getCachedBalance(ARBITRARY_ADDRESS)
+
+      expect(readContractMock).toHaveBeenCalledTimes(1)
+      resolveRead(expectedBalance)
+
+      const [firstResult, secondResult] = await Promise.all([firstRead, secondRead])
+      expect(firstResult.isOk()).toBe(true)
+      expect(secondResult.isOk()).toBe(true)
+      expect(firstResult._unsafeUnwrap()).toBe(expectedBalance)
+      expect(secondResult._unsafeUnwrap()).toBe(expectedBalance)
+
+      const cachedResult = await client.getCachedBalance(ARBITRARY_ADDRESS)
+      expect(cachedResult.isOk()).toBe(true)
+      expect(cachedResult._unsafeUnwrap()).toBe(expectedBalance)
+      expect(readContractMock).toHaveBeenCalledTimes(1)
+
+      vi.advanceTimersByTime(5_001)
+      const refreshedBalance = 777n * 10n ** 18n
+      readContractMock.mockResolvedValueOnce(refreshedBalance)
+      const refreshedResult = await client.getCachedBalance(ARBITRARY_ADDRESS)
+
+      expect(refreshedResult.isOk()).toBe(true)
+      expect(refreshedResult._unsafeUnwrap()).toBe(refreshedBalance)
+      expect(readContractMock).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not cache a failed read, so the next call can recover', async () => {
+    getChainIdMock.mockResolvedValue(80002)
+    readContractMock
+      .mockRejectedValueOnce(new Error('temporary RPC failure'))
+      .mockResolvedValueOnce(123n)
+
+    const result = await BlockchainClient.create(buildConfig())
+    const client = result._unsafeUnwrap()
+
+    const failedResult = await client.getCachedBalance(ARBITRARY_ADDRESS)
+    const recoveredResult = await client.getCachedBalance(ARBITRARY_ADDRESS)
+
+    expect(failedResult.isErr()).toBe(true)
+    expect(recoveredResult.isOk()).toBe(true)
+    expect(recoveredResult._unsafeUnwrap()).toBe(123n)
+    expect(readContractMock).toHaveBeenCalledTimes(2)
   })
 })
 

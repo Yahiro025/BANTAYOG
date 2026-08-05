@@ -7,7 +7,7 @@ import { QrTokenService } from '../services/qr-token.service.js'
 import { PinService } from '../services/pin.service.js'
 import { authMiddleware, type AuthContext } from '../middleware/auth.js'
 import { requireRole } from '../middleware/rbac.js'
-import { toTransactionDTO } from '../dto/mappers.js'
+import { toTransactionDTO, toAnalyticsTransactionSummaryDTO } from '../dto/mappers.js'
 import { errorToHttpStatus, errorToResponseBody } from '../lib/errors.js'
 import type { Env } from '../types/env.js'
 
@@ -195,6 +195,9 @@ transactionRoutes.get(
     const page = parseInt(c.req.query('page') || '1')
     const limit = parseInt(c.req.query('limit') || '20')
     const status = c.req.query('status') as any
+    // `?summary=1` returns the privacy-safe analytics projection instead of the
+    // default DTO, which embeds beneficiary and merchant identity fields.
+    const summary = c.req.query('summary') === '1'
 
     let merchantId = c.req.query('merchantId')
     const beneficiaryId = c.req.query('beneficiaryId')
@@ -218,12 +221,15 @@ transactionRoutes.get(
       beneficiaryId,
       status,
       page,
-      limit
+      limit,
+      summary
     })
 
     return result.match(
       (res) => c.json({
-        data: res.data.map(toTransactionDTO),
+        data: summary
+          ? res.data.map(toAnalyticsTransactionSummaryDTO)
+          : res.data.map(toTransactionDTO),
         count: res.count
       }),
       (error) => c.json(errorToResponseBody(error), errorToHttpStatus(error))

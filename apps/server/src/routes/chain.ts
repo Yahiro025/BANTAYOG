@@ -35,12 +35,12 @@ chainRoutes.get('/balance', async (c) => {
     return c.json({ error: 'bad_request', message: 'No target address provided and LGU_ADMIN_WALLET_ADDRESS is not set' }, 400)
   }
 
-  const clientResult = await BlockchainClient.create(configResult.value)
+  const clientResult = await BlockchainClient.getOrCreate(configResult.value)
   if (clientResult.isErr()) {
     return c.json(errorToResponseBody(clientResult.error), errorToHttpStatus(clientResult.error))
   }
 
-  const balanceResult = await clientResult.value.getBalance(targetAddress)
+  const balanceResult = await clientResult.value.getCachedBalance(targetAddress)
 
   return balanceResult.match(
     (balanceWei) =>
@@ -85,7 +85,7 @@ chainRoutes.post('/transfer', zValidator('json', transferSchema), async (c) => {
     return c.json(errorToResponseBody(configResult.error), errorToHttpStatus(configResult.error))
   }
 
-  const clientResult = await BlockchainClient.create(configResult.value)
+  const clientResult = await BlockchainClient.getOrCreate(configResult.value)
   if (clientResult.isErr()) {
     return c.json(errorToResponseBody(clientResult.error), errorToHttpStatus(clientResult.error))
   }

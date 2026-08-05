@@ -57,6 +57,54 @@ export interface TransactionDTO {
   }
 }
 
+/**
+ * Privacy-safe transaction projection for the admin analytics tab
+ * (`GET /api/transactions?summary=1`).
+ *
+ * Deliberately narrower than `TransactionDTO`: it omits `beneficiaryId`, the
+ * embedded `beneficiary` block (child name, guardian name, card serial), the
+ * embedded `merchant` block (store name, owner name, mobile number), `items`,
+ * `stablecoinAmountWei`, and `idempotencyKey`. The analytics surface only needs
+ * a settled amount, a merchant key to group by, and a chain marker, so the PII
+ * is stripped here on the server instead of being hidden by the client.
+ */
+export interface AnalyticsTransactionSummaryDTO {
+  id: string
+  merchantId: string
+  totalCreditDeducted: number
+  onchainTxHash: string | null
+  status: string
+  createdAt: string
+}
+
+/**
+ * Privacy-safe merchant projection for the admin analytics tab
+ * (`GET /api/merchants?summary=1`). Carries no owner name, mobile number,
+ * store name, wallet address, or wallet balance.
+ */
+export interface AnalyticsMerchantSummaryDTO {
+  id: string
+  status: string
+}
+
+export function toAnalyticsTransactionSummaryDTO(row: any): AnalyticsTransactionSummaryDTO {
+  return {
+    id: row.id,
+    merchantId: row.merchant_id,
+    totalCreditDeducted: Number(row.total_amount ?? row.total_credit_deducted ?? 0),
+    onchainTxHash: row.onchain_tx_hash ?? null,
+    status: row.status,
+    createdAt: row.created_at
+  }
+}
+
+export function toAnalyticsMerchantSummaryDTO(row: any): AnalyticsMerchantSummaryDTO {
+  return {
+    id: row.id,
+    status: row.status
+  }
+}
+
 export interface VisionCandidateDTO {
   name: string
   confidence: number
@@ -109,7 +157,7 @@ export interface BalanceViewDTO {
 
 export function toBalanceViewTransactionDTO(row: any): BalanceViewTransactionDTO {
   return {
-    amount: Number(row.total_credit_deducted ?? row.total_amount ?? 0),
+    amount: Number(row.total_amount ?? row.total_credit_deducted ?? 0),
     status: row.status,
     onchainTxHash: row.onchain_tx_hash ?? null,
     createdAt: row.created_at,
@@ -174,7 +222,7 @@ export function toTransactionDTO(row: any): TransactionDTO {
     beneficiaryId: row.beneficiary_id,
     merchantId: row.merchant_id,
     items: row.item_list_jsonb || [],
-    totalCreditDeducted: Number(row.total_credit_deducted || row.total_amount || 0),
+    totalCreditDeducted: Number(row.total_amount ?? row.total_credit_deducted ?? 0),
     stablecoinAmountWei: row.stablecoin_amount_wei || '0',
     onchainTxHash: row.onchain_tx_hash || null,
     idempotencyKey: row.idempotency_key || '',

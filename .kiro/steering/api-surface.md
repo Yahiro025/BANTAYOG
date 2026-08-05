@@ -42,7 +42,27 @@ Auth (`routes/auth.ts`)
 Beneficiaries (admin) — list/create/detail, QR pass issue, one-time allocation trigger. The
 allocation amount is derived from the computed tier, never from the request body.
 
-Merchants (admin) — registration/approval/suspension and listing.
+Merchants (admin) — registration/approval/suspension and listing. `GET /api/merchants?summary=1`
+returns the privacy-safe analytics projection (`{id, status}` only) and selects just those two
+columns, so owner names and mobile numbers never reach the analytics surface. Without `summary=1`
+the full merchant DTO is unchanged.
+
+Analytics (admin, `/admin/analytics` consumer) — **not implemented yet.** The frontend already
+calls these paths and renders an explicit "not yet available" state on the 404 from
+`app.notFound`. Contracts live in `packages/schema/src/analytics.ts` (imported by the web app as
+`@bantayog/schema/analytics`):
+- `GET /api/analytics/top-products?days=<n>` → `AnalyticsTopProductsResponseDto`
+- `GET /api/analytics/scan-outcomes` → `AnalyticsScanOutcomesDto` (blocked: scan verdicts are
+  never persisted)
+- `GET /api/analytics/tier-spend` → `AnalyticsTierSpendDto`
+- `GET /api/analytics/vision-performance` → `AnalyticsVisionPerformanceDto` (blocked: no latency
+  or success telemetry is stored; the Gemini response has no confidence field)
+- `GET /api/analytics/security-events` → `AnalyticsSecurityEventsDto` (reads the Upstash Redis
+  sliding-window counters, not Postgres)
+- `POST /api/analytics/dpa-export` → `DpaExportRequestDto` in; `DpaExportJsonResponseDto`
+  (`application/json`) or a `text/csv` body whose header is exactly
+  `district,beneficiaryCount,transactionCount,totalCreditDeducted`. District-level aggregates
+  only; stripping PII is the server's job, and the client refuses any other shape.
 
 Merchant self (`routes/merchant-self.ts`)
 - `GET /api/merchants/me` — profile DTO incl. `walletBalance`, `connected`; 403 if suspended.
@@ -60,7 +80,11 @@ Transactions (`routes/transactions.ts`)
   checked here) → beneficiary not SUSPENDED/INELIGIBLE → PIN with lockout → total > 0 →
   sufficient balance → `settle_sale` RPC. Returns 201 with the DTO plus `remainingBalance`.
 - `GET /api/transactions` — paginated (`page`, `limit`, `status`); merchants are force-scoped to
-  their own rows.
+  their own rows. `summary=1` switches the response to the privacy-safe analytics projection
+  (`{id, merchantId, totalCreditDeducted, onchainTxHash, status, createdAt}`) and drops the
+  `beneficiaries`/`merchants` joins from the query, so no name, card serial, mobile number, or
+  item list is read or returned. Without `summary=1` the default DTO is unchanged — the admin
+  transactions modal still depends on the embedded beneficiary/merchant blocks.
 - `GET /api/transactions/:id` — merchants get 403 on rows they do not own.
 
 Vision (merchant, `routes/vision.ts` + `services/vision.service.ts`). All bodies cap

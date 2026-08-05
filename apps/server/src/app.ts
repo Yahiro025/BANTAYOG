@@ -92,6 +92,7 @@ import visionRoutes from './routes/vision.js'
 import transactionRoutes from './routes/transactions.js'
 import balanceRoutes from './routes/balance.js'
 import merchantSelfRoutes from './routes/merchant-self.js'
+import analyticsRoutes from './routes/analytics.js'
 
 // Auth routes: mostly public (login, merchant-login); logout protected inside authRoutes
 app.route('/api/auth', authRoutes)
@@ -116,6 +117,11 @@ app.route('/api/beneficiaries', beneficiaryRoutes)
 app.use('/api/merchants', authMiddleware, requireRole('admin'))
 app.use('/api/merchants/*', authMiddleware, requireRole('admin'))
 app.route('/api/merchants', merchantRoutes)
+
+// Admin-only routes: `/admin/analytics` tab data source
+app.use('/api/analytics', authMiddleware, requireRole('admin'))
+app.use('/api/analytics/*', authMiddleware, requireRole('admin'))
+app.route('/api/analytics', analyticsRoutes)
 
 // Admin + Merchant routes
 app.use('/api/chain', authMiddleware, requireRole('admin', 'merchant'))

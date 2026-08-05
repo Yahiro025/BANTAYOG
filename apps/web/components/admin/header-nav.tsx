@@ -9,7 +9,7 @@ import { useAuth } from "@/stores/auth-context";
 /* ─────────────────────────────────────────────────────────
    AdminHeaderNav — persistent top bar across all /admin/* routes
    Logo + "Prototype" badge + university subtext on the left.
-   Registration | Beneficiaries | Merchants links on the right.
+   Registration | Beneficiaries | Merchants | Analytics links on the right.
    Active route highlighted with a pill background.
    ───────────────────────────────────────────────────────── */
 
@@ -17,6 +17,7 @@ const navLinks = [
   { href: "/admin/register", label: "REGISTRATION" },
   { href: "/admin/beneficiaries", label: "BENEFICIARIES" },
   { href: "/admin/merchants", label: "MERCHANTS" },
+  { href: "/admin/analytics", label: "ANALYTICS" },
 ] as const;
 
 export function AdminHeaderNav() {
@@ -32,7 +33,7 @@ export function AdminHeaderNav() {
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-brand-sageBorder/30 bg-bg-navbar">
+    <header className="sticky top-0 z-40 border-b border-white/15 bg-gradient-to-r from-admin-header-start to-admin-header-end">
       <div className="max-w-[1280px] mx-auto px-6 h-[72px] flex items-center justify-between gap-4">
 
         {/* ── Left: Logo + wordmark + badge + subtext ── */}
@@ -43,7 +44,7 @@ export function AdminHeaderNav() {
             alt="Bantayog"
             width={40}
             height={40}
-            className="h-10 w-10 object-contain shrink-0"
+            className="h-10 w-10 object-contain shrink-0 brightness-0 invert"
             priority
           />
 
@@ -56,16 +57,16 @@ export function AdminHeaderNav() {
                 alt="Bantayog"
                 width={140}
                 height={28}
-                className="h-7 w-auto object-contain shrink-0"
+                className="h-7 w-auto object-contain shrink-0 brightness-0 invert"
                 priority
               />
-              {/* "Prototype" badge — grey pill sampled from mock */}
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#c8c8c8]/60 text-[#555] border border-[#bbb]/40 leading-none">
+              {/* "Prototype" badge */}
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/10 text-white border border-white/25 leading-none">
                 Prototype
               </span>
             </div>
             {/* Row 2: university subtitle */}
-            <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-brand-darkTeal/50 leading-none">
+            <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-white leading-none">
               Polytechnic University of the Philippines
             </span>
           </div>
@@ -85,8 +86,8 @@ export function AdminHeaderNav() {
                   px-4 py-2 rounded-full text-[11px] font-bold tracking-wider
                   transition-all duration-200 select-none
                   ${isActive
-                    ? "bg-route-active-bg text-route-active-text shadow-sm"
-                    : "text-brand-darkTeal/70 hover:text-brand-darkTeal hover:bg-brand-sageBg/40"
+                    ? "bg-admin-header-active-bg text-admin-header-active-text shadow-sm"
+                    : "text-white/90 hover:text-white hover:bg-white/10"
                   }
                 `}
               >
@@ -98,7 +99,7 @@ export function AdminHeaderNav() {
           {/* Sign Out icon button */}
           <button
             onClick={() => setShowSignOutModal(true)}
-            className="ml-2 w-9 h-9 rounded-full flex items-center justify-center text-brand-darkTeal/60 hover:text-brand-darkTeal hover:bg-brand-sageBg/40 transition-all duration-200 select-none cursor-pointer"
+            className="ml-2 w-9 h-9 rounded-full flex items-center justify-center text-white/90 hover:text-white hover:bg-white/10 transition-all duration-200 select-none cursor-pointer"
             aria-label="Sign Out"
           >
             <svg
