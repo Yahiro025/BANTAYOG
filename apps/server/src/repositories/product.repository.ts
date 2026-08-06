@@ -18,4 +18,16 @@ export class ProductRepository extends BaseRepository<'products'> {
     if (error) throw error
     return data
   }
+
+  // Exact-match lookup by GTIN barcode (EAN-13/EAN-8/UPC-A/UPC-E).
+  async findByGtin(gtin: string) {
+    const { data, error } = await this.db
+      .from('products')
+      .select('*')
+      .eq('gtin', gtin)
+      .maybeSingle()
+
+    if (error) throw error
+    return data
+  }
 }

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { createServiceClient } from '../lib/supabase.js'
 import { VisionService } from '../services/vision.service.js'
+import { ProductsService } from '../services/products.service.js'
 import { PricingValidationService } from '../services/pricing-validation.service.js'
 import { toClassificationDTO } from '../dto/mappers.js'
 import { errorToHttpStatus, errorToResponseBody } from '../lib/errors.js'
@@ -15,6 +16,10 @@ const MAX_BASE64_LENGTH = 15 * 1024 * 1024 // ~15MB base64 string
 
 const classifySchema = z.object({
   imageBase64: z.string().min(1).max(MAX_BASE64_LENGTH, 'Image base64 payload exceeds size limit')
+})
+
+const lookupBarcodeSchema = z.object({
+  gtin: z.string().regex(/^\d{8}$|^\d{12,14}$/, 'Must be an 8, 12, 13, or 14 digit GTIN')
 })
 
 const validateNonBrandedSchema = z.object({
@@ -63,6 +68,22 @@ visionRoutes.post('/analyze-scan', zValidator('json', classifySchema), async (c)
   const visionService = new VisionService(db)
 
   const result = await visionService.analyzeScan(imageBase64)
+
+  return result.match(
+    (res) => c.json(res),
+    (error) => c.json(errorToResponseBody(error), errorToHttpStatus(error))
+  )
+})
+
+// POST /api/vision/lookup-barcode
+// Exact-match GTIN lookup against the product catalog, used by the barcode-first
+// scan path before falling back to /api/vision/analyze-scan.
+visionRoutes.post('/lookup-barcode', zValidator('json', lookupBarcodeSchema), async (c) => {
+  const { gtin } = c.req.valid('json')
+  const db = createServiceClient()
+  const productsService = new ProductsService(db)
+
+  const result = await productsService.validateByGtin(gtin)
 
   return result.match(
     (res) => c.json(res),

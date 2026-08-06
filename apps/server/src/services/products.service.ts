@@ -66,6 +66,40 @@ export class ProductsService {
     }
   }
 
+  // Looks up a product by exact GTIN barcode (EAN-13/EAN-8/UPC-A/UPC-E).
+  // UPC-A (12 digits) and its EAN-13 form (leading zero) describe the same
+  // product, so both candidates are tried when the caller sends the 12-digit
+  // form — the catalog is canonicalized to EAN-13 by the seed script.
+  async validateByGtin(gtin: string): Promise<AppResult<ValidationResult>> {
+    try {
+      const candidates = gtin.length === 12 ? [gtin, `0${gtin}`] : [gtin]
+      let matched: any = null
+      for (const candidate of candidates) {
+        matched = await this.productRepo.findByGtin(candidate)
+        if (matched) break
+      }
+
+      if (!matched) {
+        return ok({ matched: false, reason: 'No product found for this barcode' })
+      }
+
+      return ok({
+        matched: true,
+        product: {
+          id: matched.id,
+          name: matched.name,
+          eligibility_status: matched.eligibility_status,
+          category: matched.category,
+          price_range_min: Number(matched.price_range_min),
+          price_range_max: Number(matched.price_range_max),
+          image_url: matched.image_url
+        }
+      })
+    } catch (error: any) {
+      return err(new PersistenceError(`Database lookup failed: ${error.message}`, 'products'))
+    }
+  }
+
   // Validates a product by name. If it doesn't exist, researches it via Gemini,
 // creates a draft row with category='Draft' and ±₱10 price range, and returns it.
   async validateOrCreateProduct(

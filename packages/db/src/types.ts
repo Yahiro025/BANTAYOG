@@ -154,6 +154,7 @@ export interface ProductRow {
   price_range_min: number
   price_range_max: number
   image_url: string | null
+  gtin: string | null
   created_at: string
 }
 
